@@ -21,6 +21,15 @@ export const shipmentSchema = z.object({
   notes: z.string().max(2000).default("")
 });
 
+export const customsSchema = z.object({
+  id: z.string().uuid().optional(),
+  broker_name: z.string().max(120).default(""),
+  status: z.string().max(80).default(""),
+  quantity: z.number().int().min(0).default(0),
+  cleared_at: z.string().datetime().nullable().optional(),
+  notes: z.string().max(2000).default("")
+});
+
 export const laborSchema = z.object({
   id: z.string().uuid().optional(),
   labor_company: z.string().max(120).default(""),
@@ -72,6 +81,7 @@ export const signatureSchema = z.object({
 export const reportBundleSchema = z.object({
   report: dailyReportSchema,
   shipments: z.array(shipmentSchema).default([]),
+  customs: z.array(customsSchema).default([]),
   labor: z.array(laborSchema).default([]),
   tasks: z.array(taskSchema).default([]),
   incidents: z.array(incidentSchema).default([]),
@@ -83,4 +93,10 @@ export const profileUpdateSchema = z.object({
   full_name: z.string().min(1).max(120),
   role: roleSchema,
   is_active: z.boolean()
+});
+
+export const registerSchema = z.object({
+  email: z.string().email().max(320),
+  password: z.string().min(8).max(128),
+  full_name: z.string().min(1).max(120)
 });

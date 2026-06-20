@@ -2,6 +2,7 @@ import { ApiError } from "./auth";
 import { createServiceSupabase } from "./supabase";
 import type {
   DailyReport,
+  CustomsRecord,
   HandoverItem,
   Incident,
   IncidentPhoto,
@@ -15,6 +16,7 @@ import type {
 
 const childTables = [
   "shipment_records",
+  "customs_records",
   "labor_records",
   "task_records",
   "handover_items",
@@ -72,6 +74,22 @@ export async function updateProfile(
   return data;
 }
 
+export async function createViewerProfile(input: { id: string; email: string; full_name: string }) {
+  const { data, error } = await service()
+    .from("profiles")
+    .insert({
+      id: input.id,
+      email: input.email,
+      full_name: input.full_name,
+      role: "viewer",
+      is_active: true
+    })
+    .select("id, full_name, email, role, is_active, created_at, updated_at")
+    .single();
+  if (error) throw new ApiError(500, error.message);
+  return data;
+}
+
 export async function listReportSummaries() {
   const { data, error } = await service()
     .from("daily_reports")
@@ -91,8 +109,9 @@ export async function loadReportBundle(reportId: string): Promise<ReportBundle> 
     .single();
   if (reportError || !report) throw new ApiError(404, "日报不存在。");
 
-  const [shipments, labor, tasks, incidents, handovers, signatures] = await Promise.all([
+  const [shipments, customs, labor, tasks, incidents, handovers, signatures] = await Promise.all([
     supabase.from("shipment_records").select("*").eq("report_id", reportId).order("carrier"),
+    supabase.from("customs_records").select("*").eq("report_id", reportId).order("created_at"),
     supabase.from("labor_records").select("*").eq("report_id", reportId).order("created_at"),
     supabase.from("task_records").select("*").eq("report_id", reportId).order("created_at"),
     supabase.from("incidents").select("*").eq("report_id", reportId).order("created_at"),
@@ -100,7 +119,7 @@ export async function loadReportBundle(reportId: string): Promise<ReportBundle> 
     supabase.from("signatures").select("*").eq("report_id", reportId).order("signature_type")
   ]);
 
-  for (const result of [shipments, labor, tasks, incidents, handovers, signatures]) {
+  for (const result of [shipments, customs, labor, tasks, incidents, handovers, signatures]) {
     if (result.error) throw new ApiError(500, result.error.message);
   }
 
@@ -133,6 +152,7 @@ export async function loadReportBundle(reportId: string): Promise<ReportBundle> 
   return {
     report: report as DailyReport,
     shipments: (shipments.data ?? []) as ShipmentRecord[],
+    customs: (customs.data ?? []) as CustomsRecord[],
     labor: (labor.data ?? []) as LaborRecord[],
     tasks: (tasks.data ?? []) as TaskRecord[],
     incidents: incidentsWithPhotos,
@@ -236,6 +256,10 @@ async function replaceChildren(reportId: string, bundle: ReportBundle) {
     {
       table: "shipment_records",
       rows: bundle.shipments.map((row) => ({ ...row, id: row.id, report_id: reportId }))
+    },
+    {
+      table: "customs_records",
+      rows: (bundle.customs ?? []).map((row) => ({ ...row, id: row.id, report_id: reportId }))
     },
     {
       table: "labor_records",

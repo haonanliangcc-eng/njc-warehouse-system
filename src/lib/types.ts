@@ -40,6 +40,18 @@ export type ShipmentRecord = {
   updated_at?: string;
 };
 
+export type CustomsRecord = {
+  id?: string;
+  report_id?: string;
+  broker_name: string;
+  status: string;
+  quantity: number;
+  cleared_at: string | null;
+  notes: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type LaborRecord = {
   id?: string;
   report_id?: string;
@@ -110,6 +122,7 @@ export type Signature = {
 export type ReportBundle = {
   report: DailyReport;
   shipments: ShipmentRecord[];
+  customs: CustomsRecord[];
   labor: LaborRecord[];
   tasks: TaskRecord[];
   incidents: Incident[];
