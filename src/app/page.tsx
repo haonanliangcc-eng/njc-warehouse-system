@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
@@ -17,6 +17,7 @@ import type {
 } from "@/lib/types";
 
 const carriers: Carrier[] = ["GOFO", "SPX", "DD301", "UNI", "TEMU", "OTHER"];
+const shifts = ["早班", "晚班"];
 const forwardWarehouses = [
   "UniJFK仓库",
   "IMUSPSJFK仓库",
@@ -426,10 +427,10 @@ export default function Home() {
           <h1 className="text-2xl font-semibold text-blue-950">NJC仓运营数据中心</h1>
           <p className="mt-2 text-sm text-blue-700/80">{status}</p>
           {authMode === "register" && (
-            <input type="text" placeholder="姓名" value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-5 w-full rounded border border-line px-3 py-2" />
+            <input type="text" placeholder="姓名" value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-5 w-full rounded border border-blue-100 px-3 py-2" />
           )}
-          <input type="email" placeholder="邮箱" value={email} onChange={(event) => setEmail(event.target.value)} className={`${authMode === "register" ? "mt-3" : "mt-5"} w-full rounded border border-line px-3 py-2`} />
-          <input type="password" placeholder="密码" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-3 w-full rounded border border-line px-3 py-2" />
+          <input type="email" placeholder="邮箱" value={email} onChange={(event) => setEmail(event.target.value)} className={`${authMode === "register" ? "mt-3" : "mt-5"} w-full rounded border border-blue-100 px-3 py-2`} />
+          <input type="password" placeholder="密码" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-3 w-full rounded border border-blue-100 px-3 py-2" />
           <button className="mt-5 w-full rounded bg-brand px-4 py-2 font-semibold text-white shadow-sm">{authMode === "login" ? "登录" : "注册账号"}</button>
           <button
             type="button"
@@ -509,7 +510,7 @@ export default function Home() {
         {activeView === "history" && (
           <Panel title="历史日报">
             <div className="mb-3 flex justify-between gap-3">
-              <button onClick={() => void loadReports()} className="rounded border border-line bg-white px-3 py-2 text-sm font-semibold">刷新</button>
+              <button onClick={() => void loadReports()} className="rounded border border-blue-100 bg-white px-3 py-2 text-sm font-semibold">刷新</button>
               {canEdit && <button onClick={() => setBundle(defaultBundle())} className="rounded bg-brand px-3 py-2 text-sm font-semibold text-white">新建日报</button>}
             </div>
             <Table headers={["日期", "班次", "状态", "版本", "更新时间", "操作"]}>
@@ -533,9 +534,9 @@ export default function Home() {
               {profiles.map((profile) => (
                 <tr key={profile.id}>
                   <Cell>{profile.email}</Cell>
-                  <Cell><input value={profile.full_name} onChange={(event) => setProfiles((items) => items.map((item) => item.id === profile.id ? { ...item, full_name: event.target.value } : item))} className="w-full rounded border border-line px-2 py-1" /></Cell>
+                  <Cell><input value={profile.full_name} onChange={(event) => setProfiles((items) => items.map((item) => item.id === profile.id ? { ...item, full_name: event.target.value } : item))} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                   <Cell>
-                    <select value={profile.role} onChange={(event) => setProfiles((items) => items.map((item) => item.id === profile.id ? { ...item, role: event.target.value as AppRole } : item))} className="w-full rounded border border-line px-2 py-1">
+                    <select value={profile.role} onChange={(event) => setProfiles((items) => items.map((item) => item.id === profile.id ? { ...item, role: event.target.value as AppRole } : item))} className="w-full rounded border border-blue-100 px-2 py-1">
                       {["admin", "supervisor", "viewer"].map((role) => <option key={role}>{role}</option>)}
                     </select>
                   </Cell>
@@ -593,22 +594,26 @@ function DailyEditor({
     .filter(({ row }) => row.priority === "evening_dispatch" || row.priority === "morning_material");
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
       <div className="space-y-5">
         <Panel title="日报基础信息">
           <div className="grid gap-3 sm:grid-cols-3">
-            <Label label="日期"><input disabled={!canEdit} type="date" value={bundle.report.report_date} onChange={(event) => updateBundle({ report: { ...bundle.report, report_date: event.target.value } })} className="w-full rounded border border-line px-3 py-2" /></Label>
-            <Label label="班次"><input disabled={!canEdit} value={bundle.report.shift} onChange={(event) => updateBundle({ report: { ...bundle.report, shift: event.target.value } })} className="w-full rounded border border-line px-3 py-2" /></Label>
+            <Label label="日期"><input disabled={!canEdit} type="date" value={bundle.report.report_date} onChange={(event) => updateBundle({ report: { ...bundle.report, report_date: event.target.value } })} className="w-full rounded border border-blue-100 px-3 py-2" /></Label>
+            <Label label="班次">
+              <select disabled={!canEdit} value={bundle.report.shift} onChange={(event) => updateBundle({ report: { ...bundle.report, shift: event.target.value } })} className="w-full rounded border border-blue-100 px-3 py-2">
+                {shifts.map((shift) => <option key={shift}>{shift}</option>)}
+              </select>
+            </Label>
             <Label label="状态">
-              <select disabled={!canEdit} value={bundle.report.status} onChange={(event) => updateBundle({ report: { ...bundle.report, status: event.target.value as ReportBundle["report"]["status"] } })} className="w-full rounded border border-line px-3 py-2">
+              <select disabled={!canEdit} value={bundle.report.status} onChange={(event) => updateBundle({ report: { ...bundle.report, status: event.target.value as ReportBundle["report"]["status"] } })} className="w-full rounded border border-blue-100 px-3 py-2">
                 <option value="draft">draft</option>
                 <option value="submitted">submitted</option>
                 <option value="locked">locked</option>
               </select>
             </Label>
           </div>
-          <textarea disabled={!canEdit} placeholder="备注" value={bundle.report.general_notes} onChange={(event) => updateBundle({ report: { ...bundle.report, general_notes: event.target.value } })} className="mt-3 min-h-24 w-full rounded border border-line px-3 py-2" />
-          <p className="mt-2 text-sm text-slate-600">当前版本：{bundle.report.version}</p>
+          <textarea disabled={!canEdit} placeholder="备注" value={bundle.report.general_notes} onChange={(event) => updateBundle({ report: { ...bundle.report, general_notes: event.target.value } })} className="mt-3 min-h-24 w-full rounded border border-blue-100 px-3 py-2" />
+          <p className="mt-2 text-sm text-blue-700/70">当前版本：{bundle.report.version}</p>
         </Panel>
 
         <Panel title="发货记录">
@@ -618,8 +623,8 @@ function DailyEditor({
                 <Cell>{row.carrier}</Cell>
                 <Cell><NumberInput disabled={!canEdit} value={row.package_count} onChange={(value) => updateShipment(index, { package_count: value })} /></Cell>
                 <Cell><NumberInput disabled={!canEdit} value={row.pallet_count} onChange={(value) => updateShipment(index, { pallet_count: value })} /></Cell>
-                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.pickup_time)} onChange={(event) => updateShipment(index, { pickup_time: fromLocalInput(event.target.value) })} className="w-full rounded border border-line px-2 py-1" /></Cell>
-                <Cell><input disabled={!canEdit} value={row.notes} onChange={(event) => updateShipment(index, { notes: event.target.value })} className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.pickup_time)} onChange={(event) => updateShipment(index, { pickup_time: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} value={row.notes} onChange={(event) => updateShipment(index, { notes: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
               </tr>
             ))}
           </Table>
@@ -634,11 +639,11 @@ function DailyEditor({
           <Table headers={["清关行", "状态", "数量", "时间", "地址/备注"]}>
             {(bundle.customs ?? []).map((row, index) => (
               <tr key={row.id ?? index}>
-                <Cell><input disabled={!canEdit || presetCustomsNames.has(row.broker_name)} value={row.broker_name} onChange={(event) => updateCustoms(index, { broker_name: event.target.value })} className="w-full rounded border border-line px-2 py-1 disabled:bg-slate-100" /></Cell>
-                <Cell><input disabled={!canEdit} value={row.status} onChange={(event) => updateCustoms(index, { status: event.target.value })} className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit || presetCustomsNames.has(row.broker_name)} value={row.broker_name} onChange={(event) => updateCustoms(index, { broker_name: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1 disabled:bg-blue-50" /></Cell>
+                <Cell><input disabled={!canEdit} value={row.status} onChange={(event) => updateCustoms(index, { status: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><NumberInput disabled={!canEdit} value={row.quantity} onChange={(value) => updateCustoms(index, { quantity: value })} /></Cell>
-                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.cleared_at)} onChange={(event) => updateCustoms(index, { cleared_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-line px-2 py-1" /></Cell>
-                <Cell><input disabled={!canEdit} value={row.notes} onChange={(event) => updateCustoms(index, { notes: event.target.value })} className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.cleared_at)} onChange={(event) => updateCustoms(index, { cleared_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} value={row.notes} onChange={(event) => updateCustoms(index, { notes: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
               </tr>
             ))}
           </Table>
@@ -656,9 +661,9 @@ function DailyEditor({
           <Table headers={["来源/说明", "物资与数量", "拉回时间", "已入库"]}>
             {morningReturns.map(({ row, index }) => (
               <tr key={row.id ?? index}>
-                <Cell><input disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} className="w-full rounded border border-line px-2 py-1" /></Cell>
-                <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="例如：托盘2板 / 包裹30件" className="w-full rounded border border-line px-2 py-1" /></Cell>
-                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="例如：托盘2板 / 包裹30件" className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} type="checkbox" checked={row.completed} onChange={(event) => updateHandover(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="h-4 w-4" /></Cell>
               </tr>
             ))}
@@ -676,7 +681,7 @@ function DailyEditor({
               </button>
               <button
                 onClick={() => updateBundle({ handovers: [...(bundle.handovers ?? []), { description: "晚间揽收回仓", priority: "evening_pickup", assigned_to: "", due_at: null, completed: false, completed_at: null }] })}
-                className="rounded border border-line bg-white px-3 py-2 text-sm font-semibold"
+                className="rounded border border-blue-100 bg-white px-3 py-2 text-sm font-semibold"
               >
                 新增揽收回仓
               </button>
@@ -686,20 +691,20 @@ function DailyEditor({
             {eveningDispatches.map(({ row, index }) => (
               <tr key={row.id ?? index}>
                 <Cell>
-                  <select disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} className="w-full rounded border border-line px-2 py-1">
+                  <select disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1">
                     {forwardWarehouses.map((warehouse) => <option key={warehouse}>{warehouse}</option>)}
                   </select>
                 </Cell>
-                <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="发货数量" className="w-full rounded border border-line px-2 py-1" /></Cell>
-                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="发货数量" className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} type="checkbox" checked={row.completed} onChange={(event) => updateHandover(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="h-4 w-4" /></Cell>
               </tr>
             ))}
             {eveningPickups.map(({ row, index }) => (
               <tr key={row.id ?? index}>
-                <Cell><input disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} className="w-full rounded border border-line px-2 py-1" /></Cell>
-                <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="揽收数量" className="w-full rounded border border-line px-2 py-1" /></Cell>
-                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="揽收数量" className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} type="checkbox" checked={row.completed} onChange={(event) => updateHandover(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="h-4 w-4" /></Cell>
               </tr>
             ))}
@@ -709,11 +714,11 @@ function DailyEditor({
         <Panel title="员工职责清单">
           <div className="space-y-2">
             {bundle.tasks.map((task, index) => (
-              <label key={`${task.task_name}-${index}`} className="grid grid-cols-[auto_1fr] gap-3 rounded border border-line p-3 text-sm">
+              <label key={`${task.task_name}-${index}`} className="grid grid-cols-[auto_1fr] gap-3 rounded border border-blue-100 p-3 text-sm">
                 <input disabled={!canEdit} type="checkbox" checked={task.completed} onChange={(event) => updateTask(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="mt-1 h-4 w-4" />
                 <span>
                   <span className="block font-semibold">{task.task_name}</span>
-                  <input disabled={!canEdit} placeholder="责任人" value={task.assigned_to} onChange={(event) => updateTask(index, { assigned_to: event.target.value })} className="mt-2 w-full rounded border border-line px-2 py-1" />
+                  <input disabled={!canEdit} placeholder="责任人" value={task.assigned_to} onChange={(event) => updateTask(index, { assigned_to: event.target.value })} className="mt-2 w-full rounded border border-blue-100 px-2 py-1" />
                 </span>
               </label>
             ))}
@@ -732,8 +737,8 @@ function DailyEditor({
             </button>
           )}
           {bundle.labor.map((row, index) => (
-            <div key={index} className="grid gap-2 rounded border border-line p-3 sm:grid-cols-2">
-              <input disabled={!canEdit} placeholder="劳务公司" value={row.labor_company} onChange={(event) => updateBundle({ labor: bundle.labor.map((item, i) => i === index ? { ...item, labor_company: event.target.value } : item) })} className="rounded border border-line px-2 py-1" />
+            <div key={index} className="grid gap-2 rounded border border-blue-100 p-3 sm:grid-cols-2">
+              <input disabled={!canEdit} placeholder="劳务公司" value={row.labor_company} onChange={(event) => updateBundle({ labor: bundle.labor.map((item, i) => i === index ? { ...item, labor_company: event.target.value } : item) })} className="rounded border border-blue-100 px-2 py-1" />
               <NumberInput disabled={!canEdit} value={row.headcount} onChange={(value) => updateBundle({ labor: bundle.labor.map((item, i) => i === index ? { ...item, headcount: value } : item) })} />
               <NumberInput disabled={!canEdit} value={row.work_hours} onChange={(value) => updateBundle({ labor: bundle.labor.map((item, i) => i === index ? { ...item, work_hours: value } : item) })} />
               <NumberInput disabled={!canEdit} value={row.processed_quantity} onChange={(value) => updateBundle({ labor: bundle.labor.map((item, i) => i === index ? { ...item, processed_quantity: value } : item) })} />
@@ -745,19 +750,19 @@ function DailyEditor({
           {canEdit && <button onClick={() => setBundle((current) => ({ ...current, incidents: [...current.incidents, { id: crypto.randomUUID(), category: "general", description: "", severity: "medium", action_taken: "", owner_id: null, status: "open", photos: [] }] }))} className="mb-3 rounded bg-ink px-3 py-2 text-sm font-semibold text-white">新增异常</button>}
           <div className="space-y-3">
             {bundle.incidents.map((incident, index) => (
-              <div key={incident.id ?? index} className="rounded border border-line p-3">
-                <select disabled={!canEdit} value={incident.severity} onChange={(event) => updateBundle({ incidents: bundle.incidents.map((item, i) => i === index ? { ...item, severity: event.target.value as Incident["severity"] } : item) })} className="rounded border border-line px-2 py-1">
+              <div key={incident.id ?? index} className="rounded border border-blue-100 p-3">
+                <select disabled={!canEdit} value={incident.severity} onChange={(event) => updateBundle({ incidents: bundle.incidents.map((item, i) => i === index ? { ...item, severity: event.target.value as Incident["severity"] } : item) })} className="rounded border border-blue-100 px-2 py-1">
                   <option value="low">low</option>
                   <option value="medium">medium</option>
                   <option value="high">high</option>
                   <option value="critical">critical</option>
                 </select>
-                <textarea disabled={!canEdit} placeholder="异常描述" value={incident.description} onChange={(event) => updateBundle({ incidents: bundle.incidents.map((item, i) => i === index ? { ...item, description: event.target.value } : item) })} className="mt-2 min-h-20 w-full rounded border border-line px-3 py-2" />
-                <textarea disabled={!canEdit} placeholder="处理措施" value={incident.action_taken} onChange={(event) => updateBundle({ incidents: bundle.incidents.map((item, i) => i === index ? { ...item, action_taken: event.target.value } : item) })} className="mt-2 min-h-16 w-full rounded border border-line px-3 py-2" />
+                <textarea disabled={!canEdit} placeholder="异常描述" value={incident.description} onChange={(event) => updateBundle({ incidents: bundle.incidents.map((item, i) => i === index ? { ...item, description: event.target.value } : item) })} className="mt-2 min-h-20 w-full rounded border border-blue-100 px-3 py-2" />
+                <textarea disabled={!canEdit} placeholder="处理措施" value={incident.action_taken} onChange={(event) => updateBundle({ incidents: bundle.incidents.map((item, i) => i === index ? { ...item, action_taken: event.target.value } : item) })} className="mt-2 min-h-16 w-full rounded border border-blue-100 px-3 py-2" />
                 {canEdit && (
                   <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading === incident.id} onChange={(event) => event.target.files?.[0] && void uploadIncidentPhoto(incident, event.target.files[0])} className="mt-2 text-sm" />
                 )}
-                {uploading === incident.id && <p className="mt-1 text-sm text-slate-600">上传中...</p>}
+                {uploading === incident.id && <p className="mt-1 text-sm text-blue-700/70">上传中...</p>}
                 <div className="mt-2 grid grid-cols-3 gap-2">
                   {(incident.photos ?? []).map((photo) => photo.signed_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -814,7 +819,7 @@ function AnalyticsPanel({
             );
           })}
         </Table>
-        <p className="mt-3 text-sm text-slate-600">今日最高业务：{topShipment ? `${topShipment.carrier} (${topShipment.package_count})` : "暂无数据"}</p>
+        <p className="mt-3 text-sm text-blue-700/70">今日最高业务：{topShipment ? `${topShipment.carrier} (${topShipment.package_count})` : "暂无数据"}</p>
       </Panel>
 
       <Panel title="清关行分析">
@@ -841,7 +846,7 @@ function AnalyticsPanel({
           <Metric label="人均处理量" value={productivity} />
           <Metric label="建议人数" value={suggestedLabor} />
         </div>
-        <p className="mt-3 text-sm text-slate-600">建议人数根据当前人均处理量估算，只作为排班参考。</p>
+        <p className="mt-3 text-sm text-blue-700/70">建议人数根据当前人均处理量估算，只作为排班参考。</p>
       </Panel>
 
       <Panel title="异常与待办分析">
@@ -849,7 +854,7 @@ function AnalyticsPanel({
           <Metric label="异常事件" value={metrics.incidentCount} />
           <Metric label="未完成事项" value={metrics.unfinishedCount} />
         </div>
-        <p className="mt-3 text-sm text-slate-600">未完成事项越高，交接时越需要明确责任人与截止时间。</p>
+        <p className="mt-3 text-sm text-blue-700/70">未完成事项越高，交接时越需要明确责任人与截止时间。</p>
       </Panel>
 
       <Panel title="回仓与前置仓发货分析">
@@ -876,9 +881,9 @@ function AnalyticsPanel({
 function SetupMissing() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-paper px-4">
-      <div className="max-w-lg rounded-lg border border-line bg-white p-6 shadow-panel">
+      <div className="max-w-lg rounded-lg border border-blue-100 bg-white p-6 shadow-panel">
         <h1 className="text-2xl font-semibold">缺少 Supabase 配置</h1>
-        <p className="mt-3 text-sm text-slate-600">请复制 .env.example 为 .env.local，并填写 NEXT_PUBLIC_SUPABASE_URL 和 NEXT_PUBLIC_SUPABASE_ANON_KEY。</p>
+        <p className="mt-3 text-sm text-blue-700/70">请复制 .env.example 为 .env.local，并填写 NEXT_PUBLIC_SUPABASE_URL 和 NEXT_PUBLIC_SUPABASE_ANON_KEY。</p>
       </div>
     </main>
   );
@@ -886,7 +891,7 @@ function SetupMissing() {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-blue-100 bg-white/95 p-4 shadow-panel">
+    <div className="rounded-lg border border-blue-100 bg-white/95 p-4 shadow-panel ring-1 ring-white/70">
       <div className="text-sm font-medium text-blue-700/80">{label}</div>
       <div className="mt-2 text-3xl font-semibold text-blue-950">{value}</div>
     </div>
@@ -895,8 +900,10 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-blue-100 bg-white/95 p-4 shadow-panel">
-      <h2 className="mb-4 text-lg font-semibold text-blue-950">{title}</h2>
+    <section className="rounded-lg border border-blue-100 bg-white/95 p-4 shadow-panel ring-1 ring-white/70">
+      <div className="mb-4 flex items-center justify-between border-b border-blue-50 pb-3">
+        <h2 className="text-lg font-semibold text-blue-950">{title}</h2>
+      </div>
       {children}
     </section>
   );
@@ -905,10 +912,10 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 function Table({ headers, children }: { headers: string[]; children: React.ReactNode }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] border-collapse text-sm">
+      <table className="w-full min-w-[720px] border-separate border-spacing-0 text-sm">
         <thead>
           <tr className="bg-blue-50 text-left text-blue-950">
-            {headers.map((head) => <th key={head} className="border border-blue-100 p-2 font-semibold">{head}</th>)}
+            {headers.map((head) => <th key={head} className="border-y border-r border-blue-100 p-2 font-semibold first:rounded-l-md first:border-l last:rounded-r-md">{head}</th>)}
           </tr>
         </thead>
         <tbody>{children}</tbody>
@@ -918,13 +925,14 @@ function Table({ headers, children }: { headers: string[]; children: React.React
 }
 
 function Cell({ children }: { children: React.ReactNode }) {
-  return <td className="border border-blue-100 p-2 align-middle">{children}</td>;
+  return <td className="border-b border-blue-50 p-2 align-middle">{children}</td>;
 }
 
 function Label({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="text-sm font-semibold">{label}<span className="mt-1 block">{children}</span></label>;
+  return <label className="text-sm font-semibold text-blue-950">{label}<span className="mt-1 block">{children}</span></label>;
 }
 
 function NumberInput({ value, disabled, onChange }: { value: number; disabled?: boolean; onChange: (value: number) => void }) {
-  return <input disabled={disabled} type="number" value={value} onChange={(event) => onChange(toNumber(event.target.value))} className="w-full rounded border border-line px-2 py-1" />;
+  return <input disabled={disabled} type="number" value={value} onChange={(event) => onChange(toNumber(event.target.value))} className="w-full rounded border border-blue-100 px-2 py-1" />;
 }
+
