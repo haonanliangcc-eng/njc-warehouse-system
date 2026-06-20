@@ -103,14 +103,32 @@ function defaultBundle(): ReportBundle {
       { shift: "早班", task_name: "异常包裹登记完成", assigned_to: "", completed: false, completed_at: null, notes: "" }
     ],
     incidents: [],
-    handovers: forwardWarehouses.map((warehouse) => ({
-      description: warehouse,
-      priority: "morning_material",
-      assigned_to: "",
-      due_at: null,
-      completed: false,
-      completed_at: null
-    })),
+    handovers: [
+      {
+        description: "早班拉回NJC物资",
+        priority: "morning_return",
+        assigned_to: "",
+        due_at: null,
+        completed: false,
+        completed_at: null
+      },
+      {
+        description: "晚间揽收回仓",
+        priority: "evening_pickup",
+        assigned_to: "",
+        due_at: null,
+        completed: false,
+        completed_at: null
+      },
+      ...forwardWarehouses.map((warehouse) => ({
+        description: warehouse,
+        priority: "evening_dispatch",
+        assigned_to: "",
+        due_at: null,
+        completed: false,
+        completed_at: null
+      }))
+    ],
     signatures: [
       { signature_type: "handover", signer_id: null, signer_name: "", signed_at: null, storage_path: null },
       { signature_type: "receiver", signer_id: null, signer_name: "", signed_at: null, storage_path: null },
@@ -359,8 +377,14 @@ export default function Home() {
       ["清关行", "状态", "数量", "时间", "地址/备注"],
       ...(bundle.customs ?? []).map((row) => [row.broker_name, row.status, row.quantity, row.cleared_at ?? "", row.notes]),
       [],
-      ["前置仓", "收到物资/数量", "晚上发货时间", "已发货"],
-      ...(bundle.handovers ?? []).map((row) => [row.description, row.assigned_to, row.due_at ?? "", row.completed ? "是" : "否"])
+      ["类型", "说明/目的地", "数量", "时间", "完成"],
+      ...(bundle.handovers ?? []).map((row) => [
+        row.priority === "morning_return" ? "拉回NJC" : row.priority === "evening_pickup" ? "晚间揽收回仓" : "晚间发往前置仓",
+        row.description,
+        row.assigned_to,
+        row.due_at ?? "",
+        row.completed ? "是" : "否"
+      ])
     ];
     const html = `<table>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</table>`;
     const url = URL.createObjectURL(new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" }));
@@ -398,22 +422,22 @@ export default function Home() {
   if (!session || !user) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-paper px-4">
-        <form onSubmit={authMode === "login" ? login : register} className="w-full max-w-md rounded-lg border border-line bg-white p-6 shadow-panel">
-          <h1 className="text-2xl font-semibold">NJC仓运营数据中心</h1>
-          <p className="mt-2 text-sm text-slate-600">{status}</p>
+        <form onSubmit={authMode === "login" ? login : register} className="w-full max-w-md rounded-lg border border-blue-100 bg-white/95 p-6 shadow-panel backdrop-blur">
+          <h1 className="text-2xl font-semibold text-blue-950">NJC仓运营数据中心</h1>
+          <p className="mt-2 text-sm text-blue-700/80">{status}</p>
           {authMode === "register" && (
             <input type="text" placeholder="姓名" value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-5 w-full rounded border border-line px-3 py-2" />
           )}
           <input type="email" placeholder="邮箱" value={email} onChange={(event) => setEmail(event.target.value)} className={`${authMode === "register" ? "mt-3" : "mt-5"} w-full rounded border border-line px-3 py-2`} />
           <input type="password" placeholder="密码" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-3 w-full rounded border border-line px-3 py-2" />
-          <button className="mt-5 w-full rounded bg-brand px-4 py-2 font-semibold text-white">{authMode === "login" ? "登录" : "注册账号"}</button>
+          <button className="mt-5 w-full rounded bg-brand px-4 py-2 font-semibold text-white shadow-sm">{authMode === "login" ? "登录" : "注册账号"}</button>
           <button
             type="button"
             onClick={() => {
               setAuthMode(authMode === "login" ? "register" : "login");
               setStatus(authMode === "login" ? "注册后默认只能查看，管理员可在用户管理里调整权限。" : "请输入邮箱和密码登录。");
             }}
-            className="mt-3 w-full rounded border border-line bg-white px-4 py-2 font-semibold"
+            className="mt-3 w-full rounded border border-blue-200 bg-white px-4 py-2 font-semibold text-blue-900 shadow-sm"
           >
             {authMode === "login" ? "没有账号？注册账号" : "已有账号？返回登录"}
           </button>
@@ -424,18 +448,18 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-paper text-ink">
-      <header className="no-print border-b border-line bg-white">
+      <header className="no-print border-b border-blue-100 bg-white/90 shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">NJC仓运营数据中心</h1>
-            <p className="mt-1 text-sm text-slate-600">{user.full_name || user.email} · {user.role} · {status}</p>
+            <h1 className="text-2xl font-semibold text-blue-950">NJC仓运营数据中心</h1>
+            <p className="mt-1 text-sm text-blue-700/80">{user.full_name || user.email} · {user.role} · {status}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {canEdit && <button onClick={saveReport} className="rounded bg-brand px-4 py-2 text-sm font-semibold text-white">保存</button>}
-            <button onClick={exportExcel} className="rounded border border-line bg-white px-4 py-2 text-sm font-semibold">导出 Excel</button>
-            <button onClick={() => window.print()} className="rounded border border-line bg-white px-4 py-2 text-sm font-semibold">导出 PDF</button>
+            <button onClick={exportExcel} className="rounded border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-900 shadow-sm">导出 Excel</button>
+            <button onClick={() => window.print()} className="rounded border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-900 shadow-sm">导出 PDF</button>
             {canEdit && <button onClick={pushDingTalk} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white">推送钉钉</button>}
-            <button onClick={logout} className="rounded border border-line bg-white px-4 py-2 text-sm font-semibold">退出登录</button>
+            <button onClick={logout} className="rounded border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-900 shadow-sm">退出登录</button>
           </div>
         </div>
       </header>
@@ -449,7 +473,7 @@ export default function Home() {
           <Metric label="未完成事项数量" value={metrics.unfinishedCount} />
         </div>
 
-        <nav className="mb-5 flex gap-2 overflow-x-auto rounded-lg border border-line bg-white p-2">
+        <nav className="mb-5 flex gap-2 overflow-x-auto rounded-lg border border-blue-100 bg-white/90 p-2 shadow-panel">
           {[
             ["daily", "日报填写"],
             ["analytics", "数据分析"],
@@ -462,7 +486,7 @@ export default function Home() {
                 setActiveView(key as "daily" | "analytics" | "history" | "admin");
                 if (key === "admin") void loadProfiles();
               }}
-              className={`whitespace-nowrap rounded px-4 py-2 text-sm font-semibold ${activeView === key ? "bg-ink text-white" : "bg-white text-ink"}`}
+              className={`whitespace-nowrap rounded px-4 py-2 text-sm font-semibold ${activeView === key ? "bg-brand text-white shadow-sm" : "bg-white text-blue-900"}`}
             >
               {label}
             </button>
@@ -558,6 +582,16 @@ function DailyEditor({
     updateBundle({ handovers: (bundle.handovers ?? []).map((row, i) => i === index ? { ...row, ...next } : row) });
   }
 
+  const morningReturns = (bundle.handovers ?? [])
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => row.priority === "morning_return");
+  const eveningPickups = (bundle.handovers ?? [])
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => row.priority === "evening_pickup");
+  const eveningDispatches = (bundle.handovers ?? [])
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => row.priority === "evening_dispatch" || row.priority === "morning_material");
+
   return (
     <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
       <div className="space-y-5">
@@ -610,24 +644,61 @@ function DailyEditor({
           </Table>
         </Panel>
 
-        <Panel title="早班收到的物资">
+        <Panel title="拉回NJC物资">
           {canEdit && (
             <button
-              onClick={() => updateBundle({ handovers: [...(bundle.handovers ?? []), { description: forwardWarehouses[0], priority: "morning_material", assigned_to: "", due_at: null, completed: false, completed_at: null }] })}
+              onClick={() => updateBundle({ handovers: [...(bundle.handovers ?? []), { description: "拉回NJC物资", priority: "morning_return", assigned_to: "", due_at: null, completed: false, completed_at: null }] })}
               className="mb-3 rounded bg-ink px-3 py-2 text-sm font-semibold text-white"
             >
-              新增物资
+              新增回仓物资
             </button>
           )}
-          <Table headers={["前置仓", "收到物资/数量", "晚上发货时间", "已发货"]}>
-            {(bundle.handovers ?? []).map((row, index) => (
+          <Table headers={["来源/说明", "物资与数量", "拉回时间", "已入库"]}>
+            {morningReturns.map(({ row, index }) => (
+              <tr key={row.id ?? index}>
+                <Cell><input disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="例如：托盘2板 / 包裹30件" className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} type="checkbox" checked={row.completed} onChange={(event) => updateHandover(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="h-4 w-4" /></Cell>
+              </tr>
+            ))}
+          </Table>
+        </Panel>
+
+        <Panel title="晚间发货与揽收回仓">
+          {canEdit && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              <button
+                onClick={() => updateBundle({ handovers: [...(bundle.handovers ?? []), { description: forwardWarehouses[0], priority: "evening_dispatch", assigned_to: "", due_at: null, completed: false, completed_at: null }] })}
+                className="rounded bg-ink px-3 py-2 text-sm font-semibold text-white"
+              >
+                新增前置仓发货
+              </button>
+              <button
+                onClick={() => updateBundle({ handovers: [...(bundle.handovers ?? []), { description: "晚间揽收回仓", priority: "evening_pickup", assigned_to: "", due_at: null, completed: false, completed_at: null }] })}
+                className="rounded border border-line bg-white px-3 py-2 text-sm font-semibold"
+              >
+                新增揽收回仓
+              </button>
+            </div>
+          )}
+          <Table headers={["类型/目的地", "数量", "时间", "完成"]}>
+            {eveningDispatches.map(({ row, index }) => (
               <tr key={row.id ?? index}>
                 <Cell>
                   <select disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} className="w-full rounded border border-line px-2 py-1">
                     {forwardWarehouses.map((warehouse) => <option key={warehouse}>{warehouse}</option>)}
                   </select>
                 </Cell>
-                <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="例如：包裹30件 / 托盘2板" className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="发货数量" className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} type="checkbox" checked={row.completed} onChange={(event) => updateHandover(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="h-4 w-4" /></Cell>
+              </tr>
+            ))}
+            {eveningPickups.map(({ row, index }) => (
+              <tr key={row.id ?? index}>
+                <Cell><input disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="揽收数量" className="w-full rounded border border-line px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-line px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} type="checkbox" checked={row.completed} onChange={(event) => updateHandover(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="h-4 w-4" /></Cell>
               </tr>
@@ -719,8 +790,10 @@ function AnalyticsPanel({
   const topShipment = shipmentRows[0];
   const totalCustoms = (bundle.customs ?? []).reduce((sum, row) => sum + row.quantity, 0);
   const completedCustoms = (bundle.customs ?? []).filter((row) => row.status.includes("完成") || row.status.toLowerCase().includes("done"));
-  const materialRows = bundle.handovers ?? [];
-  const shippedMaterials = materialRows.filter((row) => row.completed);
+  const returnRows = (bundle.handovers ?? []).filter((row) => row.priority === "morning_return");
+  const pickupRows = (bundle.handovers ?? []).filter((row) => row.priority === "evening_pickup");
+  const dispatchRows = (bundle.handovers ?? []).filter((row) => row.priority === "evening_dispatch" || row.priority === "morning_material");
+  const completedLogisticsRows = [...returnRows, ...pickupRows, ...dispatchRows].filter((row) => row.completed);
   const processedQuantity = bundle.labor.reduce((sum, row) => sum + row.processed_quantity, 0);
   const productivity = metrics.laborCount > 0 ? Math.round(processedQuantity / metrics.laborCount) : 0;
   const suggestedLabor = productivity > 0 ? Math.ceil(metrics.totalShipments / productivity) : 0;
@@ -779,18 +852,19 @@ function AnalyticsPanel({
         <p className="mt-3 text-sm text-slate-600">未完成事项越高，交接时越需要明确责任人与截止时间。</p>
       </Panel>
 
-      <Panel title="前置仓物资分析">
+      <Panel title="回仓与前置仓发货分析">
         <div className="mb-4 grid gap-3 sm:grid-cols-2">
-          <Metric label="物资记录" value={materialRows.length} />
-          <Metric label="已发货" value={shippedMaterials.length} />
+          <Metric label="回仓/发货记录" value={returnRows.length + pickupRows.length + dispatchRows.length} />
+          <Metric label="已完成" value={completedLogisticsRows.length} />
         </div>
-        <Table headers={["前置仓", "收到物资/数量", "晚上发货时间", "已发货"]}>
-          {materialRows.map((row, index) => (
+        <Table headers={["类型", "说明/目的地", "数量", "时间", "完成"]}>
+          {[...returnRows, ...dispatchRows, ...pickupRows].map((row, index) => (
             <tr key={row.id ?? index}>
+              <Cell>{row.priority === "morning_return" ? "拉回NJC" : row.priority === "evening_pickup" ? "晚间揽收回仓" : "晚间发往前置仓"}</Cell>
               <Cell>{row.description}</Cell>
               <Cell>{row.assigned_to || "-"}</Cell>
               <Cell>{row.due_at?.slice(0, 16).replace("T", " ") ?? "-"}</Cell>
-              <Cell>{row.completed ? "是" : "否"}</Cell>
+              <Cell>{row.completed ? "完成" : "未完成"}</Cell>
             </tr>
           ))}
         </Table>
@@ -812,17 +886,17 @@ function SetupMissing() {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-line bg-white p-4 shadow-panel">
-      <div className="text-sm text-slate-600">{label}</div>
-      <div className="mt-2 text-3xl font-semibold">{value}</div>
+    <div className="rounded-lg border border-blue-100 bg-white/95 p-4 shadow-panel">
+      <div className="text-sm font-medium text-blue-700/80">{label}</div>
+      <div className="mt-2 text-3xl font-semibold text-blue-950">{value}</div>
     </div>
   );
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-line bg-white p-4 shadow-panel">
-      <h2 className="mb-4 text-lg font-semibold">{title}</h2>
+    <section className="rounded-lg border border-blue-100 bg-white/95 p-4 shadow-panel">
+      <h2 className="mb-4 text-lg font-semibold text-blue-950">{title}</h2>
       {children}
     </section>
   );
@@ -833,8 +907,8 @@ function Table({ headers, children }: { headers: string[]; children: React.React
     <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] border-collapse text-sm">
         <thead>
-          <tr className="bg-slate-100 text-left">
-            {headers.map((head) => <th key={head} className="border border-line p-2">{head}</th>)}
+          <tr className="bg-blue-50 text-left text-blue-950">
+            {headers.map((head) => <th key={head} className="border border-blue-100 p-2 font-semibold">{head}</th>)}
           </tr>
         </thead>
         <tbody>{children}</tbody>
@@ -844,7 +918,7 @@ function Table({ headers, children }: { headers: string[]; children: React.React
 }
 
 function Cell({ children }: { children: React.ReactNode }) {
-  return <td className="border border-line p-2">{children}</td>;
+  return <td className="border border-blue-100 p-2 align-middle">{children}</td>;
 }
 
 function Label({ label, children }: { label: string; children: React.ReactNode }) {
