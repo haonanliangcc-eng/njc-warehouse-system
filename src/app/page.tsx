@@ -7,6 +7,7 @@ import type {
   AppRole,
   Carrier,
   CustomsRecord,
+  HandoverItem,
   Incident,
   Profile,
   ReportBundle,
@@ -16,6 +17,16 @@ import type {
 } from "@/lib/types";
 
 const carriers: Carrier[] = ["GOFO", "SPX", "DD301", "UNI", "TEMU", "OTHER"];
+const forwardWarehouses = [
+  "UniJFK仓库",
+  "IMUSPSJFK仓库",
+  "GofoJFK仓库",
+  "SPXJFK仓库",
+  "华盛顿提货仓02",
+  "费城提货仓01",
+  "华盛顿提货仓01",
+  "肯尼迪提货仓03"
+];
 const presetCustomsNames = new Set([
   "AGS",
   "IMG",
@@ -68,7 +79,14 @@ function defaultBundle(): ReportBundle {
     ],
     labor: [
       {
-        labor_company: "",
+        labor_company: "Han",
+        headcount: 0,
+        work_hours: 0,
+        processed_quantity: 0,
+        notes: ""
+      },
+      {
+        labor_company: "Delin",
         headcount: 0,
         work_hours: 0,
         processed_quantity: 0,
@@ -85,7 +103,14 @@ function defaultBundle(): ReportBundle {
       { shift: "早班", task_name: "异常包裹登记完成", assigned_to: "", completed: false, completed_at: null, notes: "" }
     ],
     incidents: [],
-    handovers: [],
+    handovers: forwardWarehouses.map((warehouse) => ({
+      description: warehouse,
+      priority: "morning_material",
+      assigned_to: "",
+      due_at: null,
+      completed: false,
+      completed_at: null
+    })),
     signatures: [
       { signature_type: "handover", signer_id: null, signer_name: "", signed_at: null, storage_path: null },
       { signature_type: "receiver", signer_id: null, signer_name: "", signed_at: null, storage_path: null },
@@ -332,7 +357,10 @@ export default function Home() {
       ...bundle.shipments.map((row) => [row.carrier, row.package_count, row.pallet_count, row.pickup_time ?? "", row.notes]),
       [],
       ["清关行", "状态", "数量", "时间", "地址/备注"],
-      ...(bundle.customs ?? []).map((row) => [row.broker_name, row.status, row.quantity, row.cleared_at ?? "", row.notes])
+      ...(bundle.customs ?? []).map((row) => [row.broker_name, row.status, row.quantity, row.cleared_at ?? "", row.notes]),
+      [],
+      ["前置仓", "收到物资/数量", "晚上发货时间", "已发货"],
+      ...(bundle.handovers ?? []).map((row) => [row.description, row.assigned_to, row.due_at ?? "", row.completed ? "是" : "否"])
     ];
     const html = `<table>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</table>`;
     const url = URL.createObjectURL(new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" }));
@@ -526,6 +554,10 @@ function DailyEditor({
     updateBundle({ tasks: bundle.tasks.map((row, i) => i === index ? { ...row, ...next } : row) });
   }
 
+  function updateHandover(index: number, next: Partial<HandoverItem>) {
+    updateBundle({ handovers: (bundle.handovers ?? []).map((row, i) => i === index ? { ...row, ...next } : row) });
+  }
+
   return (
     <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
       <div className="space-y-5">
@@ -578,6 +610,31 @@ function DailyEditor({
           </Table>
         </Panel>
 
+        <Panel title="早班收到的物资">
+          {canEdit && (
+            <button
+              onClick={() => updateBundle({ handovers: [...(bundle.handovers ?? []), { description: forwardWarehouses[0], priority: "morning_material", assigned_to: "", due_at: null, completed: false, completed_at: null }] })}
+              className="mb-3 rounded bg-ink px-3 py-2 text-sm font-semibold text-white"
+            >
+              新增物资
+            </button>
+          )}
+          <Table headers={["前置仓", "收到物资/数量", "晚上发货时间", "已发货"]}>
+            {(bundle.handovers ?? []).map((row, index) => (
+              <tr key={row.id ?? index}>
+                <Cell>
+                  <select disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} className="w-full rounded border border-line px-2 py-1">
+                    {forwardWarehouses.map((warehouse) => <option key={warehouse}>{warehouse}</option>)}
+                  </select>
+                </Cell>
+                <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="例如：包裹30件 / 托盘2板" className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-line px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} type="checkbox" checked={row.completed} onChange={(event) => updateHandover(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="h-4 w-4" /></Cell>
+              </tr>
+            ))}
+          </Table>
+        </Panel>
+
         <Panel title="员工职责清单">
           <div className="space-y-2">
             {bundle.tasks.map((task, index) => (
@@ -595,6 +652,14 @@ function DailyEditor({
 
       <div className="space-y-5">
         <Panel title="劳务记录">
+          {canEdit && (
+            <button
+              onClick={() => updateBundle({ labor: [...bundle.labor, { labor_company: "", headcount: 0, work_hours: 0, processed_quantity: 0, notes: "" }] })}
+              className="mb-3 rounded bg-ink px-3 py-2 text-sm font-semibold text-white"
+            >
+              新增劳务公司
+            </button>
+          )}
           {bundle.labor.map((row, index) => (
             <div key={index} className="grid gap-2 rounded border border-line p-3 sm:grid-cols-2">
               <input disabled={!canEdit} placeholder="劳务公司" value={row.labor_company} onChange={(event) => updateBundle({ labor: bundle.labor.map((item, i) => i === index ? { ...item, labor_company: event.target.value } : item) })} className="rounded border border-line px-2 py-1" />
@@ -654,6 +719,8 @@ function AnalyticsPanel({
   const topShipment = shipmentRows[0];
   const totalCustoms = (bundle.customs ?? []).reduce((sum, row) => sum + row.quantity, 0);
   const completedCustoms = (bundle.customs ?? []).filter((row) => row.status.includes("完成") || row.status.toLowerCase().includes("done"));
+  const materialRows = bundle.handovers ?? [];
+  const shippedMaterials = materialRows.filter((row) => row.completed);
   const processedQuantity = bundle.labor.reduce((sum, row) => sum + row.processed_quantity, 0);
   const productivity = metrics.laborCount > 0 ? Math.round(processedQuantity / metrics.laborCount) : 0;
   const suggestedLabor = productivity > 0 ? Math.ceil(metrics.totalShipments / productivity) : 0;
@@ -710,6 +777,23 @@ function AnalyticsPanel({
           <Metric label="未完成事项" value={metrics.unfinishedCount} />
         </div>
         <p className="mt-3 text-sm text-slate-600">未完成事项越高，交接时越需要明确责任人与截止时间。</p>
+      </Panel>
+
+      <Panel title="前置仓物资分析">
+        <div className="mb-4 grid gap-3 sm:grid-cols-2">
+          <Metric label="物资记录" value={materialRows.length} />
+          <Metric label="已发货" value={shippedMaterials.length} />
+        </div>
+        <Table headers={["前置仓", "收到物资/数量", "晚上发货时间", "已发货"]}>
+          {materialRows.map((row, index) => (
+            <tr key={row.id ?? index}>
+              <Cell>{row.description}</Cell>
+              <Cell>{row.assigned_to || "-"}</Cell>
+              <Cell>{row.due_at?.slice(0, 16).replace("T", " ") ?? "-"}</Cell>
+              <Cell>{row.completed ? "是" : "否"}</Cell>
+            </tr>
+          ))}
+        </Table>
       </Panel>
     </div>
   );
