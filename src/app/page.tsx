@@ -35,8 +35,21 @@ function defaultBundle(): ReportBundle {
       notes: ""
     })),
     customs: [
-      { broker_name: "清关行A", status: "", quantity: 0, cleared_at: null, notes: "" },
-      { broker_name: "清关行B", status: "", quantity: 0, cleared_at: null, notes: "" }
+      { broker_name: "FTE", status: "", quantity: 0, cleared_at: null, notes: "230-39 Rockaway Blvd, Queens, NY 11413" },
+      { broker_name: "AGS", status: "", quantity: 0, cleared_at: null, notes: "184-54 149th Ave, Springfield Gardens, NY 11413" },
+      { broker_name: "IMG", status: "", quantity: 0, cleared_at: null, notes: "147-06 176th St, Jamaica, NY 11434" },
+      { broker_name: "Mirage", status: "", quantity: 0, cleared_at: null, notes: "179-20 149th Ave, Jamaica, NY 11434" },
+      { broker_name: "Yuejie", status: "", quantity: 0, cleared_at: null, notes: "167-17 146th Rd, Jamaica, NY 11434; 165-15 145th Dr" },
+      { broker_name: "YiYou", status: "", quantity: 0, cleared_at: null, notes: "152-31 135th Ave, Jamaica, NY 11434" },
+      { broker_name: "R&T", status: "", quantity: 0, cleared_at: null, notes: "148-36 Guy R Brewer Blvd, Jamaica, NY 11434" },
+      { broker_name: "六成JFK", status: "", quantity: 0, cleared_at: null, notes: "145-11 155th St, Jamaica, NY 11434" },
+      { broker_name: "Tolead", status: "", quantity: 0, cleared_at: null, notes: "107 Charles Lindbergh Blvd, Garden City, NY 11530" },
+      { broker_name: "JFK86空运", status: "", quantity: 0, cleared_at: null, notes: "Cargo Bldg 21, Jamaica, NY 11430" },
+      { broker_name: "ISP", status: "", quantity: 0, cleared_at: null, notes: "370 Oser Ave, Hauppauge, NY 11788" },
+      { broker_name: "JFK", status: "", quantity: 0, cleared_at: null, notes: "71 Inip Dr, Inwood, NY 11096 United States" },
+      { broker_name: "SF", status: "", quantity: 0, cleared_at: null, notes: "14808 Guy R Brewer Blvd, Jamaica, NY 11434; 15344 S Conduit Ave, Jamaica, NY 11434" },
+      { broker_name: "4PX", status: "", quantity: 0, cleared_at: null, notes: "155-50 145th Street, Jamaica, NY 11434" },
+      { broker_name: "机场", status: "", quantity: 0, cleared_at: null, notes: "机场提货/交接" }
     ],
     labor: [
       {
@@ -303,7 +316,7 @@ export default function Home() {
       ["承运商", "包裹数", "板数", "提货时间", "备注"],
       ...bundle.shipments.map((row) => [row.carrier, row.package_count, row.pallet_count, row.pickup_time ?? "", row.notes]),
       [],
-      ["清关行", "状态", "数量", "时间", "备注"],
+      ["清关行", "状态", "数量", "时间", "地址/备注"],
       ...(bundle.customs ?? []).map((row) => [row.broker_name, row.status, row.quantity, row.cleared_at ?? "", row.notes])
     ];
     const html = `<table>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</table>`;
@@ -537,7 +550,7 @@ function DailyEditor({
               新增清关行
             </button>
           )}
-          <Table headers={["清关行", "状态", "数量", "时间", "备注"]}>
+          <Table headers={["清关行", "状态", "数量", "时间", "地址/备注"]}>
             {(bundle.customs ?? []).map((row, index) => (
               <tr key={row.id ?? index}>
                 <Cell><input disabled={!canEdit} value={row.broker_name} onChange={(event) => updateCustoms(index, { broker_name: event.target.value })} className="w-full rounded border border-line px-2 py-1" /></Cell>
