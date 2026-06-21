@@ -39,17 +39,13 @@ type ChartPoint = {
   secondary?: number;
 };
 
-type DailySection = "base" | "shipments" | "customs" | "returns" | "evening" | "tasks" | "labor" | "incidents";
+type DailySection = "overview" | "shipments" | "customs" | "evening";
 
 const dailySections: { key: DailySection; label: string }[] = [
-  { key: "base", label: "基础信息" },
+  { key: "overview", label: "综合日报" },
   { key: "shipments", label: "发货记录" },
   { key: "customs", label: "清关行" },
-  { key: "returns", label: "拉回NJC物资" },
-  { key: "evening", label: "晚间发货与揽收" },
-  { key: "tasks", label: "员工职责" },
-  { key: "labor", label: "劳务记录" },
-  { key: "incidents", label: "异常事件" }
+  { key: "evening", label: "晚间发货与揽收" }
 ];
 
 function toNumber(value: string) {
@@ -659,7 +655,7 @@ function DailyEditor({
   uploadIncidentPhoto: (incident: Incident, file: File) => Promise<void>;
   uploading: string | null;
 }) {
-  const [activeDailySection, setActiveDailySection] = useState<DailySection>("base");
+  const [activeDailySection, setActiveDailySection] = useState<DailySection>("overview");
 
   function updateShipment(index: number, next: Partial<ShipmentRecord>) {
     updateBundle({ shipments: bundle.shipments.map((row, i) => i === index ? { ...row, ...next } : row) });
@@ -753,9 +749,9 @@ function DailyEditor({
           </select>
         </label>
       </div>
-      <div className={`grid gap-5 ${activeDailySection === "labor" || activeDailySection === "incidents" ? "" : "xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]"}`}>
+      <div className={`grid gap-5 ${activeDailySection === "overview" ? "xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]" : ""}`}>
       <div className="space-y-5">
-        {activeDailySection === "base" && <Panel title="日报基础信息">
+        {activeDailySection === "overview" && <Panel title="日报基础信息">
           {canEdit && <SectionSaveButton onClick={() => void onSaveSection("report", "基础信息")} />}
           <div className="grid gap-3 sm:grid-cols-3">
             <Label label="日期"><input disabled={!canEdit} type="date" value={bundle.report.report_date} onChange={(event) => updateBundle({ report: { ...bundle.report, report_date: event.target.value } })} className="w-full rounded border border-blue-100 px-3 py-2" /></Label>
@@ -818,7 +814,7 @@ function DailyEditor({
           </Table>
         </Panel>}
 
-        {activeDailySection === "returns" && <Panel title="拉回NJC物资">
+        {activeDailySection === "overview" && <Panel title="拉回NJC物资">
           {canEdit && <SectionSaveButton onClick={() => void onSaveSection("morning_returns", "拉回NJC物资")} />}
           {canEdit && (
             <button
@@ -894,7 +890,7 @@ function DailyEditor({
           </Table>
         </Panel>}
 
-        {activeDailySection === "tasks" && <Panel title="员工职责清单">
+        {activeDailySection === "overview" && <Panel title="员工职责清单">
           {canEdit && <SectionSaveButton onClick={() => void onSaveSection("tasks", "员工职责清单")} />}
           <div className="space-y-2">
             {bundle.tasks.map((task, index) => (
@@ -915,7 +911,7 @@ function DailyEditor({
       </div>
 
       <div className="space-y-5">
-        {activeDailySection === "labor" && <Panel title="劳务记录">
+        {activeDailySection === "overview" && <Panel title="劳务记录">
           {canEdit && <SectionSaveButton onClick={() => void onSaveSection("labor", "劳务记录")} />}
           {canEdit && (
             <button
@@ -935,7 +931,7 @@ function DailyEditor({
           ))}
         </Panel>}
 
-        {activeDailySection === "incidents" && <Panel title="异常事件">
+        {activeDailySection === "overview" && <Panel title="异常事件">
           {canEdit && <SectionSaveButton onClick={() => void onSaveSection("incidents", "异常事件")} />}
           {canEdit && <button onClick={() => { setBundle((current) => ({ ...current, incidents: [...current.incidents, { id: crypto.randomUUID(), category: "general", description: "", severity: "medium", action_taken: "", owner_id: null, status: "open", photos: [] }] })); markDirty(); }} className="mb-3 rounded bg-ink px-3 py-2 text-sm font-semibold text-white">新增异常</button>}
           <div className="space-y-3">
@@ -1008,7 +1004,10 @@ function AnalyticsPanel({
     value: row.package_count,
     secondary: row.pallet_count
   }));
-  const carrierShare = carrierVolume.filter((row) => row.value > 0);
+  const customsVolume: ChartPoint[] = (bundle.customs ?? []).map((row) => ({
+    label: row.broker_name || "未命名",
+    value: row.quantity
+  }));
   const logisticsShare: ChartPoint[] = [
     { label: "拉回NJC", value: returnRows.length },
     { label: "前置仓发货", value: dispatchRows.length },
@@ -1018,20 +1017,20 @@ function AnalyticsPanel({
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
-      <Panel title="仓库吞吐趋势">
+      <Panel title="发货记录分析">
         <LineChart
           data={carrierVolume}
-          title="各业务发货量与板数"
-          valueLabel="包裹数"
+          title="X轴：承运商 / Y轴：数量与板数"
+          valueLabel="发货数量"
           secondaryLabel="板数"
         />
       </Panel>
 
-      <Panel title="业务占比饼图">
-        <DonutChart
-          data={carrierShare}
-          emptyText="暂无发货量数据"
-          totalLabel="总发货量"
+      <Panel title="清关行提货分析">
+        <LineChart
+          data={customsVolume}
+          title="X轴：清关行 / Y轴：提货数量"
+          valueLabel="提货数量"
         />
       </Panel>
 
@@ -1138,11 +1137,11 @@ function LineChart({
   data: ChartPoint[];
   title: string;
   valueLabel: string;
-  secondaryLabel: string;
+  secondaryLabel?: string;
 }) {
-  const width = 640;
-  const height = 260;
-  const padding = { top: 24, right: 30, bottom: 48, left: 54 };
+  const width = Math.max(640, data.length * 82);
+  const height = 290;
+  const padding = { top: 24, right: 30, bottom: 78, left: 54 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const maxValue = Math.max(1, ...data.flatMap((point) => [point.value, point.secondary ?? 0]));
@@ -1161,6 +1160,7 @@ function LineChart({
     const { x, y } = pointFor(point, index, "secondary");
     return `${index === 0 ? "M" : "L"} ${x} ${y}`;
   }).join(" ");
+  const hasSecondary = Boolean(secondaryLabel && data.some((point) => point.secondary !== undefined));
 
   return (
     <div>
@@ -1168,11 +1168,11 @@ function LineChart({
         <p className="font-semibold text-blue-950">{title}</p>
         <div className="flex gap-3 text-blue-700/80">
           <span><span className="mr-1 inline-block h-2 w-5 rounded-full bg-brand" />{valueLabel}</span>
-          <span><span className="mr-1 inline-block h-2 w-5 rounded-full bg-accent" />{secondaryLabel}</span>
+          {hasSecondary && <span><span className="mr-1 inline-block h-2 w-5 rounded-full bg-accent" />{secondaryLabel}</span>}
         </div>
       </div>
       <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="min-h-[260px] w-full min-w-[560px]" role="img" aria-label={title}>
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-[290px]" style={{ minWidth: `${width}px` }} role="img" aria-label={title}>
           {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
             const y = padding.top + chartHeight - ratio * chartHeight;
             return (
@@ -1183,15 +1183,15 @@ function LineChart({
             );
           })}
           <path d={volumePath} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-          <path d={palletPath} fill="none" stroke="#f97316" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 5" />
+          {hasSecondary && <path d={palletPath} fill="none" stroke="#f97316" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 5" />}
           {data.map((point, index) => {
             const main = pointFor(point, index, "value");
             const secondary = pointFor(point, index, "secondary");
             return (
               <g key={point.label}>
                 <circle cx={main.x} cy={main.y} r="4" fill="#2563eb" />
-                <circle cx={secondary.x} cy={secondary.y} r="4" fill="#f97316" />
-                <text x={main.x} y={height - 18} textAnchor="middle" className="fill-blue-950 text-[12px] font-semibold">{point.label}</text>
+                {hasSecondary && <circle cx={secondary.x} cy={secondary.y} r="4" fill="#f97316" />}
+                <text x={main.x} y={height - 52} textAnchor="end" transform={`rotate(-35 ${main.x} ${height - 52})`} className="fill-blue-950 text-[12px] font-semibold">{point.label}</text>
                 <text x={main.x} y={main.y - 10} textAnchor="middle" className="fill-blue-700 text-[11px]">{point.value}</text>
               </g>
             );
