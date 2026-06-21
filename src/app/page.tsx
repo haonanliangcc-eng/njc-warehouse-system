@@ -23,6 +23,16 @@ import type {
   UserContext
 } from "@/lib/types";
 
+type ReportSection =
+  | "report"
+  | "shipments"
+  | "customs"
+  | "labor"
+  | "tasks"
+  | "incidents"
+  | "morning_returns"
+  | "evening_logistics";
+
 function toNumber(value: string) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
@@ -57,6 +67,7 @@ export default function Home() {
 
   const canEdit = user?.role === "admin" || user?.role === "supervisor";
   const isAdmin = user?.role === "admin";
+  const canModifyReport = canEdit && (isAdmin || bundle.report.status !== "locked");
 
   const metrics = useMemo(() => ({
     totalShipments: bundle.shipments.reduce((sum, row) => sum + row.package_count, 0),
@@ -173,23 +184,59 @@ export default function Home() {
     setIsDirty(true);
   }
 
-  async function saveReport() {
-    if (!canEdit) return;
+  function mergeSavedSection(current: ReportBundle, saved: ReportBundle, section: ReportSection) {
+    const next: ReportBundle = {
+      ...current,
+      report: {
+        ...current.report,
+        id: saved.report.id,
+        version: saved.report.version,
+        updated_at: saved.report.updated_at,
+        updated_by: saved.report.updated_by
+      }
+    };
+    if (section === "report") next.report = saved.report;
+    if (section === "shipments") next.shipments = saved.shipments;
+    if (section === "customs") next.customs = saved.customs;
+    if (section === "labor") next.labor = saved.labor;
+    if (section === "tasks") next.tasks = saved.tasks;
+    if (section === "incidents") next.incidents = saved.incidents;
+    if (section === "morning_returns") {
+      next.handovers = [
+        ...current.handovers.filter((item) => item.priority !== "morning_return"),
+        ...saved.handovers.filter((item) => item.priority === "morning_return")
+      ];
+    }
+    if (section === "evening_logistics") {
+      const eveningPriorities = new Set(["evening_dispatch", "morning_material", "evening_pickup"]);
+      next.handovers = [
+        ...current.handovers.filter((item) => !eveningPriorities.has(item.priority)),
+        ...saved.handovers.filter((item) => eveningPriorities.has(item.priority))
+      ];
+    }
+    return normalizeReportBundle(next);
+  }
+
+  async function saveReport(section?: ReportSection, label = "日报") {
+    if (!canModifyReport) return;
     try {
-      setStatus("保存中...");
+      setStatus(`${label}保存中...`);
       const normalized = normalizeReportBundle(bundleRef.current);
       bundleRef.current = normalized;
       const isExisting = Boolean(normalized.report.id);
       const data = await apiFetch(isExisting ? `/api/daily-reports/${normalized.report.id}` : "/api/daily-reports", {
-        method: isExisting ? "PUT" : "POST",
-        body: JSON.stringify(normalized)
+        method: section && isExisting ? "PATCH" : isExisting ? "PUT" : "POST",
+        body: JSON.stringify(section && isExisting ? { section, bundle: normalized } : normalized)
       });
-      setBundle(normalizeReportBundle(data.bundle));
-      setIsDirty(false);
+      const savedBundle = normalizeReportBundle(data.bundle);
+      const nextBundle = section && isExisting ? mergeSavedSection(bundleRef.current, savedBundle, section) : savedBundle;
+      bundleRef.current = nextBundle;
+      setBundle(nextBundle);
+      setIsDirty(section ? isDirty : false);
       setLastSavedAt(new Date().toLocaleTimeString());
-      if (user) window.localStorage.removeItem(`warehouse-draft-${user.id}`);
+      if (!section && user) window.localStorage.removeItem(`warehouse-draft-${user.id}`);
       await loadReports();
-      setStatus("已保存");
+      setStatus(section ? `已保存${label}` : "已保存");
     } catch (error) {
       if (error instanceof Error && error.name === "409") {
         setStatus("该日报已被其他用户修改，请刷新后重新提交。");
@@ -421,7 +468,7 @@ export default function Home() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {canEdit && <button onClick={saveReport} className="rounded bg-brand px-4 py-2 text-sm font-semibold text-white">保存</button>}
+            {canModifyReport && <button onClick={() => void saveReport()} className="rounded bg-brand px-4 py-2 text-sm font-semibold text-white">保存</button>}
             <button onClick={exportExcel} className="rounded border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-900 shadow-sm">导出 Excel</button>
             <button onClick={() => window.print()} className="rounded border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-900 shadow-sm">导出 PDF</button>
             {canEdit && <button onClick={pushDingTalk} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white">推送钉钉</button>}
@@ -462,11 +509,13 @@ export default function Home() {
         {activeView === "daily" && (
           <DailyEditor
             bundle={bundle}
-            canEdit={canEdit}
+            canEdit={canModifyReport}
+            isAdmin={isAdmin}
             setBundle={setBundle}
             updateBundle={updateBundle}
             markDirty={() => setIsDirty(true)}
             onSave={saveReport}
+            onSaveSection={saveReport}
             onClear={() => {
               const cleared = createDefaultReportBundle(bundle.report.report_date, bundle.report.shift);
               setBundle({
@@ -544,20 +593,24 @@ export default function Home() {
 function DailyEditor({
   bundle,
   canEdit,
+  isAdmin,
   setBundle,
   updateBundle,
   markDirty,
   onSave,
+  onSaveSection,
   onClear,
   uploadIncidentPhoto,
   uploading
 }: {
   bundle: ReportBundle;
   canEdit: boolean;
+  isAdmin: boolean;
   setBundle: React.Dispatch<React.SetStateAction<ReportBundle>>;
   updateBundle: (next: Partial<ReportBundle>) => void;
   markDirty: () => void;
   onSave: () => Promise<void>;
+  onSaveSection: (section: ReportSection, label?: string) => Promise<void>;
   onClear: () => void;
   uploadIncidentPhoto: (incident: Incident, file: File) => Promise<void>;
   uploading: string | null;
@@ -605,6 +658,7 @@ function DailyEditor({
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
       <div className="space-y-5">
         <Panel title="日报基础信息">
+          {canEdit && <SectionSaveButton onClick={() => void onSaveSection("report", "基础信息")} />}
           <div className="grid gap-3 sm:grid-cols-3">
             <Label label="日期"><input disabled={!canEdit} type="date" value={bundle.report.report_date} onChange={(event) => updateBundle({ report: { ...bundle.report, report_date: event.target.value } })} className="w-full rounded border border-blue-100 px-3 py-2" /></Label>
             <Label label="班次">
@@ -616,7 +670,7 @@ function DailyEditor({
               <select disabled={!canEdit} value={bundle.report.status} onChange={(event) => updateBundle({ report: { ...bundle.report, status: event.target.value as ReportBundle["report"]["status"] } })} className="w-full rounded border border-blue-100 px-3 py-2">
                 <option value="draft">draft</option>
                 <option value="submitted">submitted</option>
-                <option value="locked">locked</option>
+                <option value="locked" disabled={!isAdmin}>locked</option>
               </select>
             </Label>
           </div>
@@ -625,6 +679,7 @@ function DailyEditor({
         </Panel>
 
         <Panel title="发货记录">
+          {canEdit && <SectionSaveButton onClick={() => void onSaveSection("shipments", "发货记录")} />}
           <Table headers={["承运商", "包裹数", "板数", "提货时间", "备注"]}>
             {bundle.shipments.map((row, index) => (
               <tr key={`${row.carrier}-${index}`}>
@@ -639,6 +694,7 @@ function DailyEditor({
         </Panel>
 
         <Panel title="清关行">
+          {canEdit && <SectionSaveButton onClick={() => void onSaveSection("customs", "清关行")} />}
           {canEdit && (
             <button onClick={() => updateBundle({ customs: [...(bundle.customs ?? []), { broker_name: "", status: "", quantity: 0, cleared_at: null, notes: "" }] })} className="mb-3 rounded bg-ink px-3 py-2 text-sm font-semibold text-white">
               新增清关行
@@ -658,6 +714,7 @@ function DailyEditor({
         </Panel>
 
         <Panel title="拉回NJC物资">
+          {canEdit && <SectionSaveButton onClick={() => void onSaveSection("morning_returns", "拉回NJC物资")} />}
           {canEdit && (
             <button
               onClick={() => updateBundle({ handovers: [...(bundle.handovers ?? []), { description: "拉回NJC物资", priority: "morning_return", assigned_to: "", due_at: null, completed: false, completed_at: null }] })}
@@ -679,6 +736,7 @@ function DailyEditor({
         </Panel>
 
         <Panel title="晚间发货与揽收回仓">
+          {canEdit && <SectionSaveButton onClick={() => void onSaveSection("evening_logistics", "晚间发货与揽收回仓")} />}
           {canEdit && (
             <div className="mb-3 flex flex-wrap gap-2">
               <button
@@ -720,6 +778,7 @@ function DailyEditor({
         </Panel>
 
         <Panel title="员工职责清单">
+          {canEdit && <SectionSaveButton onClick={() => void onSaveSection("tasks", "员工职责清单")} />}
           <div className="space-y-2">
             {bundle.tasks.map((task, index) => (
               <label key={`${task.task_name}-${index}`} className="grid grid-cols-[auto_1fr] gap-3 rounded border border-blue-100 p-3 text-sm">
@@ -736,6 +795,7 @@ function DailyEditor({
 
       <div className="space-y-5">
         <Panel title="劳务记录">
+          {canEdit && <SectionSaveButton onClick={() => void onSaveSection("labor", "劳务记录")} />}
           {canEdit && (
             <button
               onClick={() => updateBundle({ labor: [...bundle.labor, { labor_company: "", headcount: 0, work_hours: 0, processed_quantity: 0, notes: "" }] })}
@@ -755,6 +815,7 @@ function DailyEditor({
         </Panel>
 
         <Panel title="异常事件">
+          {canEdit && <SectionSaveButton onClick={() => void onSaveSection("incidents", "异常事件")} />}
           {canEdit && <button onClick={() => { setBundle((current) => ({ ...current, incidents: [...current.incidents, { id: crypto.randomUUID(), category: "general", description: "", severity: "medium", action_taken: "", owner_id: null, status: "open", photos: [] }] })); markDirty(); }} className="mb-3 rounded bg-ink px-3 py-2 text-sm font-semibold text-white">新增异常</button>}
           <div className="space-y-3">
             {bundle.incidents.map((incident, index) => (
@@ -784,6 +845,16 @@ function DailyEditor({
       </div>
       </div>
     </>
+  );
+}
+
+function SectionSaveButton({ onClick }: { onClick: () => void }) {
+  return (
+    <div className="mb-3 flex justify-end">
+      <button onClick={onClick} className="rounded border border-blue-200 bg-white px-3 py-1.5 text-sm font-semibold text-blue-900 shadow-sm">
+        保存本板块
+      </button>
+    </div>
   );
 }
 

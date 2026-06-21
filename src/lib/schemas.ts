@@ -89,6 +89,24 @@ export const reportBundleSchema = z.object({
   signatures: z.array(signatureSchema).default([])
 });
 
+export const reportSectionSchema = z.enum([
+  "report",
+  "shipments",
+  "customs",
+  "labor",
+  "tasks",
+  "incidents",
+  "morning_returns",
+  "evening_logistics",
+  "handovers",
+  "signatures"
+]);
+
+export const reportSectionUpdateSchema = z.object({
+  section: reportSectionSchema,
+  bundle: reportBundleSchema
+});
+
 export const profileUpdateSchema = z.object({
   full_name: z.string().min(1).max(120),
   role: roleSchema,

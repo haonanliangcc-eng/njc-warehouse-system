@@ -199,6 +199,10 @@ export async function updateReportBundle(user: UserContext, reportId: string, bu
     .single();
   if (existingError || !existing) throw new ApiError(404, "日报不存在。");
 
+  if ((existing.status === "locked" || bundle.report.status === "locked") && user.role !== "admin") {
+    throw new ApiError(403, "日报已锁定，只有管理员可以修改。");
+  }
+
   if (existing.version !== bundle.report.version) {
     throw new ApiError(409, "该日报已被其他用户修改，请刷新后重新提交。");
   }
