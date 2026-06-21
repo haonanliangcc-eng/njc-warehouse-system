@@ -3,9 +3,15 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { createBrowserSupabase } from "@/lib/supabase";
+import {
+  createDefaultReportBundle,
+  forwardWarehouses,
+  presetCustomsNames,
+  shifts,
+  todayKey
+} from "@/lib/warehouse-config";
 import type {
   AppRole,
-  Carrier,
   CustomsRecord,
   HandoverItem,
   Incident,
@@ -15,129 +21,6 @@ import type {
   TaskRecord,
   UserContext
 } from "@/lib/types";
-
-const carriers: Carrier[] = ["GOFO", "SPX", "DD301", "UNI", "TEMU", "OTHER"];
-const shifts = ["早班", "晚班"];
-const forwardWarehouses = [
-  "UniJFK仓库",
-  "IMUSPSJFK仓库",
-  "GofoJFK仓库",
-  "SPXJFK仓库",
-  "华盛顿提货仓02",
-  "费城提货仓01",
-  "华盛顿提货仓01",
-  "肯尼迪提货仓03"
-];
-const presetCustomsNames = new Set([
-  "AGS",
-  "IMG",
-  "Mirage",
-  "Yuejie1",
-  "Yuejie2",
-  "YiYou",
-  "R&T",
-  "六脉",
-  "Tolead",
-  "JFK86空运",
-  "ISP",
-  "JFK",
-  "SF1",
-  "SF2"
-]);
-const today = new Date().toISOString().slice(0, 10);
-
-function defaultBundle(): ReportBundle {
-  return {
-    report: {
-      report_date: today,
-      shift: "早班",
-      status: "draft",
-      general_notes: "",
-      version: 1
-    },
-    shipments: carriers.map((carrier) => ({
-      carrier,
-      package_count: 0,
-      pallet_count: 0,
-      pickup_time: null,
-      notes: ""
-    })),
-    customs: [
-      { broker_name: "AGS", status: "", quantity: 0, cleared_at: null, notes: "184-54 149th Ave, Springfield Gardens, NY 11413" },
-      { broker_name: "IMG", status: "", quantity: 0, cleared_at: null, notes: "147-06 176th St, Jamaica, NY 11434" },
-      { broker_name: "Mirage", status: "", quantity: 0, cleared_at: null, notes: "179-20 149th Ave, Jamaica, NY 11434" },
-      { broker_name: "Yuejie1", status: "", quantity: 0, cleared_at: null, notes: "167-17 146th Rd, Jamaica, NY 11434" },
-      { broker_name: "Yuejie2", status: "", quantity: 0, cleared_at: null, notes: "165-15 145th Dr, Jamaica, NY 11434" },
-      { broker_name: "YiYou", status: "", quantity: 0, cleared_at: null, notes: "152-31 135th Ave, Jamaica, NY 11434" },
-      { broker_name: "R&T", status: "", quantity: 0, cleared_at: null, notes: "148-36 Guy R Brewer Blvd, Jamaica, NY 11434" },
-      { broker_name: "六脉", status: "", quantity: 0, cleared_at: null, notes: "145-11 155th St, Jamaica, NY 11434" },
-      { broker_name: "Tolead", status: "", quantity: 0, cleared_at: null, notes: "107 Charles Lindbergh Blvd, Garden City, NY 11530" },
-      { broker_name: "JFK86空运", status: "", quantity: 0, cleared_at: null, notes: "Cargo Bldg 21, Jamaica, NY 11430" },
-      { broker_name: "ISP", status: "", quantity: 0, cleared_at: null, notes: "370 Oser Ave, Hauppauge, NY 11788" },
-      { broker_name: "JFK", status: "", quantity: 0, cleared_at: null, notes: "71 Inip Dr, Inwood, NY 11096 United States" },
-      { broker_name: "SF1", status: "", quantity: 0, cleared_at: null, notes: "14808 Guy R Brewer Blvd, Jamaica, NY 11434" },
-      { broker_name: "SF2", status: "", quantity: 0, cleared_at: null, notes: "15344 S Conduit Ave, Jamaica, NY 11434" }
-    ],
-    labor: [
-      {
-        labor_company: "Han",
-        headcount: 0,
-        work_hours: 0,
-        processed_quantity: 0,
-        notes: ""
-      },
-      {
-        labor_company: "Delin",
-        headcount: 0,
-        work_hours: 0,
-        processed_quantity: 0,
-        notes: ""
-      }
-    ],
-    tasks: [
-      { shift: "早班", task_name: "NJC仓派送货装车完成", assigned_to: "", completed: false, completed_at: null, notes: "" },
-      { shift: "早班", task_name: "GOFO司机取货完成", assigned_to: "", completed: false, completed_at: null, notes: "" },
-      { shift: "早班", task_name: "SPX司机取货完成", assigned_to: "", completed: false, completed_at: null, notes: "" },
-      { shift: "早班", task_name: "DD301司机取货完成", assigned_to: "", completed: false, completed_at: null, notes: "" },
-      { shift: "早班", task_name: "UNI司机取货完成", assigned_to: "", completed: false, completed_at: null, notes: "" },
-      { shift: "早班", task_name: "Temu退货接收登记完成", assigned_to: "", completed: false, completed_at: null, notes: "" },
-      { shift: "早班", task_name: "异常包裹登记完成", assigned_to: "", completed: false, completed_at: null, notes: "" }
-    ],
-    incidents: [],
-    handovers: [
-      {
-        description: "早班拉回NJC物资",
-        priority: "morning_return",
-        assigned_to: "",
-        due_at: null,
-        completed: false,
-        completed_at: null
-      },
-      {
-        description: "晚间揽收回仓",
-        priority: "evening_pickup",
-        assigned_to: "",
-        due_at: null,
-        completed: false,
-        completed_at: null
-      },
-      ...forwardWarehouses.map((warehouse) => ({
-        description: warehouse,
-        priority: "evening_dispatch",
-        assigned_to: "",
-        due_at: null,
-        completed: false,
-        completed_at: null
-      }))
-    ],
-    signatures: [
-      { signature_type: "handover", signer_id: null, signer_name: "", signed_at: null, storage_path: null },
-      { signature_type: "receiver", signer_id: null, signer_name: "", signed_at: null, storage_path: null },
-      { signature_type: "supervisor", signer_id: null, signer_name: "", signed_at: null, storage_path: null },
-      { signature_type: "manager", signer_id: null, signer_name: "", signed_at: null, storage_path: null }
-    ]
-  };
-}
 
 function toNumber(value: string) {
   const parsed = Number(value);
@@ -162,10 +45,12 @@ export default function Home() {
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [status, setStatus] = useState("正在加载...");
   const [activeView, setActiveView] = useState<"daily" | "analytics" | "history" | "admin">("daily");
-  const [bundle, setBundle] = useState<ReportBundle>(() => defaultBundle());
+  const [bundle, setBundle] = useState<ReportBundle>(() => createDefaultReportBundle());
   const [reports, setReports] = useState<ReportBundle["report"][]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
   const canEdit = user?.role === "admin" || user?.role === "supervisor";
   const isAdmin = user?.role === "admin";
@@ -177,26 +62,6 @@ export default function Home() {
     incidentCount: bundle.incidents.length,
     unfinishedCount: bundle.tasks.filter((task) => !task.completed).length
   }), [bundle]);
-
-  useEffect(() => {
-    if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session) void loadMe(data.session.access_token);
-      else setStatus("请登录");
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      if (nextSession) void loadMe(nextSession.access_token);
-      else {
-        setUser(null);
-        setStatus("请登录");
-      }
-    });
-    return () => data.subscription.unsubscribe();
-    // Authentication bootstraps once per Supabase client instance.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
 
   async function apiFetch(path: string, init: RequestInit = {}) {
     if (!session?.access_token) throw new Error("请先登录。");
@@ -226,7 +91,18 @@ export default function Home() {
       if (!response.ok) throw new Error(data.error || "无法读取用户信息");
       setUser(data.user);
       setStatus("已登录");
-      await loadReports(token);
+      const loadedReports = await loadReports(token);
+      const todayReport = loadedReports.find((report: ReportBundle["report"]) => report.report_date === todayKey());
+      if (todayReport?.id) {
+        await loadReport(todayReport.id, token);
+        return;
+      }
+      const draft = window.localStorage.getItem(`warehouse-draft-${data.user.id}`);
+      if (draft) {
+        setBundle(JSON.parse(draft));
+        setIsDirty(true);
+        setStatus("已恢复本机草稿，请确认后保存。");
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "登录状态异常");
     }
@@ -240,6 +116,7 @@ export default function Home() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "无法读取日报");
     setReports(data.reports);
+    return data.reports;
   }
 
   async function login(event: FormEvent) {
@@ -270,12 +147,14 @@ export default function Home() {
   async function logout() {
     if (!supabase) return;
     await supabase.auth.signOut();
-    setBundle(defaultBundle());
+    setBundle(createDefaultReportBundle());
+    setIsDirty(false);
     setReports([]);
   }
 
   function updateBundle(next: Partial<ReportBundle>) {
     setBundle((current) => ({ ...current, ...next }));
+    setIsDirty(true);
   }
 
   async function saveReport() {
@@ -288,6 +167,9 @@ export default function Home() {
         body: JSON.stringify(bundle)
       });
       setBundle(data.bundle);
+      setIsDirty(false);
+      setLastSavedAt(new Date().toLocaleTimeString());
+      if (user) window.localStorage.removeItem(`warehouse-draft-${user.id}`);
       await loadReports();
       setStatus("已保存");
     } catch (error) {
@@ -299,11 +181,18 @@ export default function Home() {
     }
   }
 
-  async function loadReport(id: string) {
+  async function loadReport(id: string, token = session?.access_token) {
     try {
       setStatus("读取中...");
-      const data = await apiFetch(`/api/daily-reports/${id}`);
+      const data = token === session?.access_token
+        ? await apiFetch(`/api/daily-reports/${id}`)
+        : await fetch(`/api/daily-reports/${id}`, { headers: { Authorization: `Bearer ${token}` } }).then(async (response) => {
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.error || "读取失败");
+            return payload;
+          });
       setBundle(data.bundle);
+      setIsDirty(false);
       setActiveView("daily");
       setStatus("已读取");
     } catch (error) {
@@ -418,6 +307,41 @@ export default function Home() {
     }
   }
 
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      if (data.session) void loadMe(data.session.access_token);
+      else setStatus("请登录");
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      if (nextSession) void loadMe(nextSession.access_token);
+      else {
+        setUser(null);
+        setStatus("请登录");
+      }
+    });
+    return () => data.subscription.unsubscribe();
+    // Authentication bootstraps once per Supabase client instance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!isDirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
+  useEffect(() => {
+    if (!user || !isDirty) return;
+    window.localStorage.setItem(`warehouse-draft-${user.id}`, JSON.stringify(bundle));
+  }, [bundle, isDirty, user]);
+
   if (!supabase) return <SetupMissing />;
 
   if (!session || !user) {
@@ -453,7 +377,10 @@ export default function Home() {
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-blue-950">NJC仓运营数据中心</h1>
-            <p className="mt-1 text-sm text-blue-700/80">{user.full_name || user.email} · {user.role} · {status}</p>
+            <p className="mt-1 text-sm text-blue-700/80">
+              {user.full_name || user.email} · {user.role} · {status}
+              {isDirty ? " · 有未保存修改" : lastSavedAt ? ` · 上次保存 ${lastSavedAt}` : ""}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             {canEdit && <button onClick={saveReport} className="rounded bg-brand px-4 py-2 text-sm font-semibold text-white">保存</button>}
@@ -500,6 +427,7 @@ export default function Home() {
             canEdit={canEdit}
             setBundle={setBundle}
             updateBundle={updateBundle}
+            markDirty={() => setIsDirty(true)}
             uploadIncidentPhoto={uploadIncidentPhoto}
             uploading={uploading}
           />
@@ -511,7 +439,7 @@ export default function Home() {
           <Panel title="历史日报">
             <div className="mb-3 flex justify-between gap-3">
               <button onClick={() => void loadReports()} className="rounded border border-blue-100 bg-white px-3 py-2 text-sm font-semibold">刷新</button>
-              {canEdit && <button onClick={() => setBundle(defaultBundle())} className="rounded bg-brand px-3 py-2 text-sm font-semibold text-white">新建日报</button>}
+              {canEdit && <button onClick={() => { setBundle(createDefaultReportBundle()); setIsDirty(false); }} className="rounded bg-brand px-3 py-2 text-sm font-semibold text-white">新建日报</button>}
             </div>
             <Table headers={["日期", "班次", "状态", "版本", "更新时间", "操作"]}>
               {reports.map((report) => (
@@ -557,6 +485,7 @@ function DailyEditor({
   canEdit,
   setBundle,
   updateBundle,
+  markDirty,
   uploadIncidentPhoto,
   uploading
 }: {
@@ -564,6 +493,7 @@ function DailyEditor({
   canEdit: boolean;
   setBundle: React.Dispatch<React.SetStateAction<ReportBundle>>;
   updateBundle: (next: Partial<ReportBundle>) => void;
+  markDirty: () => void;
   uploadIncidentPhoto: (incident: Incident, file: File) => Promise<void>;
   uploading: string | null;
 }) {
@@ -747,7 +677,7 @@ function DailyEditor({
         </Panel>
 
         <Panel title="异常事件">
-          {canEdit && <button onClick={() => setBundle((current) => ({ ...current, incidents: [...current.incidents, { id: crypto.randomUUID(), category: "general", description: "", severity: "medium", action_taken: "", owner_id: null, status: "open", photos: [] }] }))} className="mb-3 rounded bg-ink px-3 py-2 text-sm font-semibold text-white">新增异常</button>}
+          {canEdit && <button onClick={() => { setBundle((current) => ({ ...current, incidents: [...current.incidents, { id: crypto.randomUUID(), category: "general", description: "", severity: "medium", action_taken: "", owner_id: null, status: "open", photos: [] }] })); markDirty(); }} className="mb-3 rounded bg-ink px-3 py-2 text-sm font-semibold text-white">新增异常</button>}
           <div className="space-y-3">
             {bundle.incidents.map((incident, index) => (
               <div key={incident.id ?? index} className="rounded border border-blue-100 p-3">
