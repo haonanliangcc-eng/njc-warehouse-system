@@ -1018,7 +1018,7 @@ function AnalyticsPanel({
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <Panel title="发货记录分析">
-        <LineChart
+        <CategoryBarChart
           data={carrierVolume}
           title="X轴：承运商 / Y轴：数量与板数"
           valueLabel="发货数量"
@@ -1027,7 +1027,7 @@ function AnalyticsPanel({
       </Panel>
 
       <Panel title="清关行提货分析">
-        <LineChart
+        <CategoryBarChart
           data={customsVolume}
           title="X轴：清关行 / Y轴：提货数量"
           valueLabel="提货数量"
@@ -1128,7 +1128,7 @@ function SetupMissing() {
 
 const chartColors = ["#2563eb", "#0f766e", "#f97316", "#7c3aed", "#dc2626", "#64748b"];
 
-function LineChart({
+function CategoryBarChart({
   data,
   title,
   valueLabel,
@@ -1139,28 +1139,20 @@ function LineChart({
   valueLabel: string;
   secondaryLabel?: string;
 }) {
-  const width = Math.max(640, data.length * 82);
-  const height = 290;
-  const padding = { top: 24, right: 30, bottom: 78, left: 54 };
+  const width = Math.max(640, data.length * 86);
+  const height = 300;
+  const padding = { top: 28, right: 24, bottom: 78, left: 54 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const maxValue = Math.max(1, ...data.flatMap((point) => [point.value, point.secondary ?? 0]));
-  const step = data.length > 1 ? chartWidth / (data.length - 1) : chartWidth;
-  const pointFor = (point: ChartPoint, index: number, key: "value" | "secondary") => {
-    const raw = key === "value" ? point.value : point.secondary ?? 0;
-    const x = padding.left + (data.length > 1 ? index * step : chartWidth / 2);
-    const y = padding.top + chartHeight - (raw / maxValue) * chartHeight;
-    return { x, y };
-  };
-  const volumePath = data.map((point, index) => {
-    const { x, y } = pointFor(point, index, "value");
-    return `${index === 0 ? "M" : "L"} ${x} ${y}`;
-  }).join(" ");
-  const palletPath = data.map((point, index) => {
-    const { x, y } = pointFor(point, index, "secondary");
-    return `${index === 0 ? "M" : "L"} ${x} ${y}`;
-  }).join(" ");
   const hasSecondary = Boolean(secondaryLabel && data.some((point) => point.secondary !== undefined));
+  const slotWidth = chartWidth / Math.max(data.length, 1);
+  const barWidth = hasSecondary ? 20 : 34;
+  const baseline = padding.top + chartHeight;
+  const barGeometry = (value: number) => {
+    const barHeight = (value / maxValue) * chartHeight;
+    return { y: baseline - barHeight, height: barHeight };
+  };
 
   return (
     <div>
@@ -1168,11 +1160,11 @@ function LineChart({
         <p className="font-semibold text-blue-950">{title}</p>
         <div className="flex gap-3 text-blue-700/80">
           <span><span className="mr-1 inline-block h-2 w-5 rounded-full bg-brand" />{valueLabel}</span>
-          {hasSecondary && <span><span className="mr-1 inline-block h-2 w-5 rounded-full bg-accent" />{secondaryLabel}</span>}
+          {hasSecondary && <span><span className="mr-1 inline-block h-2 w-5 rounded-full bg-sky-500" />{secondaryLabel}</span>}
         </div>
       </div>
       <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="h-[290px]" style={{ minWidth: `${width}px` }} role="img" aria-label={title}>
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-[300px]" style={{ minWidth: `${width}px` }} role="img" aria-label={title}>
           {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
             const y = padding.top + chartHeight - ratio * chartHeight;
             return (
@@ -1182,17 +1174,26 @@ function LineChart({
               </g>
             );
           })}
-          <path d={volumePath} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-          {hasSecondary && <path d={palletPath} fill="none" stroke="#f97316" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 5" />}
           {data.map((point, index) => {
-            const main = pointFor(point, index, "value");
-            const secondary = pointFor(point, index, "secondary");
+            const centerX = padding.left + slotWidth * index + slotWidth / 2;
+            const main = barGeometry(point.value);
+            const secondaryValue = point.secondary ?? 0;
+            const secondary = barGeometry(secondaryValue);
+            const mainX = centerX - (hasSecondary ? barWidth + 2 : barWidth / 2);
+            const secondaryX = centerX + 2;
             return (
               <g key={point.label}>
-                <circle cx={main.x} cy={main.y} r="4" fill="#2563eb" />
-                {hasSecondary && <circle cx={secondary.x} cy={secondary.y} r="4" fill="#f97316" />}
-                <text x={main.x} y={height - 52} textAnchor="end" transform={`rotate(-35 ${main.x} ${height - 52})`} className="fill-blue-950 text-[12px] font-semibold">{point.label}</text>
-                <text x={main.x} y={main.y - 10} textAnchor="middle" className="fill-blue-700 text-[11px]">{point.value}</text>
+                <rect x={mainX} y={main.y} width={barWidth} height={main.height} rx="3" fill="#2563eb">
+                  <title>{`${point.label} ${valueLabel}: ${point.value}`}</title>
+                </rect>
+                {hasSecondary && (
+                  <rect x={secondaryX} y={secondary.y} width={barWidth} height={secondary.height} rx="3" fill="#0ea5e9">
+                    <title>{`${point.label} ${secondaryLabel}: ${secondaryValue}`}</title>
+                  </rect>
+                )}
+                <text x={centerX} y={height - 52} textAnchor="end" transform={`rotate(-35 ${centerX} ${height - 52})`} className="fill-blue-950 text-[12px] font-semibold">{point.label}</text>
+                <text x={mainX + barWidth / 2} y={Math.max(padding.top + 11, main.y - 7)} textAnchor="middle" className="fill-blue-700 text-[11px]">{point.value}</text>
+                {hasSecondary && <text x={secondaryX + barWidth / 2} y={Math.max(padding.top + 11, secondary.y - 7)} textAnchor="middle" className="fill-sky-600 text-[11px]">{secondaryValue}</text>}
               </g>
             );
           })}
