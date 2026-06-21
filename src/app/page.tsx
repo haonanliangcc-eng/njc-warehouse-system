@@ -739,16 +739,19 @@ function DailyEditor({
           </div>
         </div>
       )}
-      <div className="mb-5 flex gap-2 overflow-x-auto rounded-lg border border-blue-100 bg-white/90 p-2 shadow-panel">
-        {dailySections.map((section) => (
-          <button
-            key={section.key}
-            onClick={() => setActiveDailySection(section.key)}
-            className={`whitespace-nowrap rounded px-3 py-2 text-sm font-semibold ${activeDailySection === section.key ? "bg-brand text-white shadow-sm" : "bg-white text-blue-900"}`}
+      <div className="mb-5 rounded-lg border border-blue-100 bg-white/90 p-4 shadow-panel">
+        <label className="block max-w-md text-sm font-semibold text-blue-950">
+          日报板块
+          <select
+            value={activeDailySection}
+            onChange={(event) => setActiveDailySection(event.target.value as DailySection)}
+            className="mt-2 w-full rounded-md border border-blue-200 bg-white px-3 py-2.5 text-base font-medium text-blue-950 outline-none transition focus:border-brand focus:ring-2 focus:ring-blue-100"
           >
-            {section.label}
-          </button>
-        ))}
+            {dailySections.map((section) => (
+              <option key={section.key} value={section.key}>{section.label}</option>
+            ))}
+          </select>
+        </label>
       </div>
       <div className={`grid gap-5 ${activeDailySection === "labor" || activeDailySection === "incidents" ? "" : "xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]"}`}>
       <div className="space-y-5">
