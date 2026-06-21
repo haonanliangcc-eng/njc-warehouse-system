@@ -20,7 +20,9 @@ export const forwardWarehouses = [
   "华盛顿提货仓02",
   "费城提货仓01",
   "华盛顿提货仓01",
-  "肯尼迪提货仓03"
+  "肯尼迪提货仓03",
+  "肯尼迪提货仓01",
+  "纽约中心仓01"
 ];
 
 export const customsBrokerPresets = [
@@ -34,13 +36,12 @@ export const customsBrokerPresets = [
   { broker_name: "六脉", notes: "145-11 155th St, Jamaica, NY 11434" },
   { broker_name: "Tolead", notes: "107 Charles Lindbergh Blvd, Garden City, NY 11530" },
   { broker_name: "JFK86空运", notes: "Cargo Bldg 21, Jamaica, NY 11430" },
-  { broker_name: "ISP", notes: "370 Oser Ave, Hauppauge, NY 11788" },
-  { broker_name: "JFK", notes: "71 Inip Dr, Inwood, NY 11096 United States" },
   { broker_name: "SF1", notes: "14808 Guy R Brewer Blvd, Jamaica, NY 11434" },
   { broker_name: "SF2", notes: "15344 S Conduit Ave, Jamaica, NY 11434" }
 ];
 
 export const presetCustomsNames = new Set(customsBrokerPresets.map((item) => item.broker_name));
+const deprecatedCustomsNames = new Set(["ISP", "JFK"]);
 
 export const laborCompanyPresets = ["Han", "Delin"];
 
@@ -51,6 +52,7 @@ export const taskTemplates = [
   "DD301司机取货完成",
   "UNI司机取货完成",
   "Temu发货/退货交接完成",
+  "DD301空运交航完成",
   "异常包裹登记完成"
 ];
 
@@ -155,7 +157,11 @@ export function normalizeReportBundle(bundle: ReportBundle): ReportBundle {
     ...defaults,
     ...bundle,
     shipments: mergeByCarrier(defaults.shipments, bundle.shipments ?? []),
-    customs: mergeByName<CustomsRecord>(defaults.customs, bundle.customs ?? [], "broker_name"),
+    customs: mergeByName<CustomsRecord>(
+      defaults.customs,
+      (bundle.customs ?? []).filter((row) => !deprecatedCustomsNames.has(row.broker_name)),
+      "broker_name"
+    ),
     labor: mergeByName<LaborRecord>(defaults.labor, bundle.labor ?? [], "labor_company"),
     tasks: mergeByName<TaskRecord>(defaults.tasks, bundle.tasks ?? [], "task_name"),
     incidents: bundle.incidents ?? [],

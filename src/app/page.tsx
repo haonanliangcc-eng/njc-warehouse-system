@@ -52,6 +52,7 @@ export default function Home() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const bundleRef = useRef(bundle);
 
   const canEdit = user?.role === "admin" || user?.role === "supervisor";
@@ -68,6 +69,11 @@ export default function Home() {
   useEffect(() => {
     bundleRef.current = bundle;
   }, [bundle]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function apiFetch(path: string, init: RequestInit = {}) {
     if (!session?.access_token) throw new Error("请先登录。");
@@ -209,6 +215,26 @@ export default function Home() {
       setStatus("已读取");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "读取失败");
+    }
+  }
+
+  async function deleteHistoryReport(report: ReportBundle["report"]) {
+    if (!isAdmin || !report.id) return;
+    const ok = window.confirm(`确认删除 ${report.report_date} ${report.shift} 的历史日报吗？删除后无法恢复。`);
+    if (!ok) return;
+    try {
+      setStatus("删除历史日报中...");
+      await apiFetch(`/api/daily-reports/${report.id}`, { method: "DELETE" });
+      if (bundle.report.id === report.id) {
+        const fresh = createDefaultReportBundle();
+        bundleRef.current = fresh;
+        setBundle(fresh);
+        setIsDirty(false);
+      }
+      await loadReports();
+      setStatus("历史日报已删除");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "删除失败");
     }
   }
 
@@ -390,7 +416,7 @@ export default function Home() {
           <div>
             <h1 className="text-2xl font-semibold text-blue-950">NJC仓运营数据中心</h1>
             <p className="mt-1 text-sm text-blue-700/80">
-              {user.full_name || user.email} · {user.role} · {status}
+              {user.full_name || user.email} · {user.role} · <span suppressHydrationWarning>{currentTime.toLocaleString()}</span> · {status}
               {isDirty ? " · 有未保存修改" : lastSavedAt ? ` · 上次保存 ${lastSavedAt}` : ""}
             </p>
           </div>
@@ -479,7 +505,12 @@ export default function Home() {
                   <Cell>{report.status}</Cell>
                   <Cell>{report.version}</Cell>
                   <Cell>{report.updated_at ?? ""}</Cell>
-                  <Cell><button onClick={() => report.id && loadReport(report.id)} className="rounded bg-ink px-3 py-1 text-white">打开</button></Cell>
+                  <Cell>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => report.id && loadReport(report.id)} className="rounded bg-ink px-3 py-1 text-white">{isAdmin ? "打开/编辑" : "打开"}</button>
+                      {isAdmin && <button onClick={() => void deleteHistoryReport(report)} className="rounded border border-red-200 bg-white px-3 py-1 font-semibold text-red-700">删除</button>}
+                    </div>
+                  </Cell>
                 </tr>
               ))}
             </Table>
@@ -911,6 +942,19 @@ function Label({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function NumberInput({ value, disabled, onChange }: { value: number; disabled?: boolean; onChange: (value: number) => void }) {
-  return <input disabled={disabled} type="number" value={value} onChange={(event) => onChange(toNumber(event.target.value))} className="w-full rounded border border-blue-100 px-2 py-1" />;
+  return (
+    <input
+      disabled={disabled}
+      type="number"
+      min="0"
+      placeholder="0"
+      value={value === 0 ? "" : String(value)}
+      onChange={(event) => {
+        const next = event.target.value;
+        onChange(next === "" ? 0 : toNumber(next));
+      }}
+      className="w-full rounded border border-blue-100 px-2 py-1"
+    />
+  );
 }
 
