@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { createBrowserSupabase } from "@/lib/supabase";
 import {
@@ -52,6 +52,7 @@ export default function Home() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const bundleRef = useRef(bundle);
 
   const canEdit = user?.role === "admin" || user?.role === "supervisor";
   const isAdmin = user?.role === "admin";
@@ -63,6 +64,10 @@ export default function Home() {
     incidentCount: bundle.incidents.length,
     unfinishedCount: bundle.tasks.filter((task) => !task.completed).length
   }), [bundle]);
+
+  useEffect(() => {
+    bundleRef.current = bundle;
+  }, [bundle]);
 
   async function apiFetch(path: string, init: RequestInit = {}) {
     if (!session?.access_token) throw new Error("请先登录。");
@@ -154,7 +159,11 @@ export default function Home() {
   }
 
   function updateBundle(next: Partial<ReportBundle>) {
-    setBundle((current) => ({ ...current, ...next }));
+    setBundle((current) => {
+      const updated = { ...current, ...next };
+      bundleRef.current = updated;
+      return updated;
+    });
     setIsDirty(true);
   }
 
@@ -162,8 +171,8 @@ export default function Home() {
     if (!canEdit) return;
     try {
       setStatus("保存中...");
-      const normalized = normalizeReportBundle(bundle);
-      setBundle(normalized);
+      const normalized = normalizeReportBundle(bundleRef.current);
+      bundleRef.current = normalized;
       const isExisting = Boolean(normalized.report.id);
       const data = await apiFetch(isExisting ? `/api/daily-reports/${normalized.report.id}` : "/api/daily-reports", {
         method: isExisting ? "PUT" : "POST",

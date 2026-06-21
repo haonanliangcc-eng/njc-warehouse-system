@@ -27,6 +27,14 @@ function service() {
   return createServiceSupabase();
 }
 
+function rowForReport<T extends { id?: string; report_id?: string; created_at?: string; updated_at?: string }>(
+  row: T,
+  reportId: string
+) {
+  const { id, report_id: _reportId, created_at: _createdAt, updated_at: _updatedAt, ...rest } = row;
+  return id ? { ...rest, id, report_id: reportId } : { ...rest, report_id: reportId };
+}
+
 async function auditLog(
   user: UserContext,
   action: string,
@@ -242,11 +250,7 @@ async function replaceChildren(reportId: string, bundle: ReportBundle) {
     if (error) throw new ApiError(500, error.message);
   }
 
-  const incidentRows = bundle.incidents.map(({ photos: _photos, ...row }) => ({
-    ...row,
-    id: row.id,
-    report_id: reportId
-  }));
+  const incidentRows = bundle.incidents.map(({ photos: _photos, ...row }) => rowForReport(row, reportId));
   if (incidentRows.length > 0) {
     const { error } = await supabase.from("incidents").upsert(incidentRows as never[]);
     if (error) throw new ApiError(500, error.message);
@@ -255,27 +259,27 @@ async function replaceChildren(reportId: string, bundle: ReportBundle) {
   const inserts = [
     {
       table: "shipment_records",
-      rows: bundle.shipments.map((row) => ({ ...row, id: row.id, report_id: reportId }))
+      rows: bundle.shipments.map((row) => rowForReport(row, reportId))
     },
     {
       table: "customs_records",
-      rows: (bundle.customs ?? []).map((row) => ({ ...row, id: row.id, report_id: reportId }))
+      rows: (bundle.customs ?? []).map((row) => rowForReport(row, reportId))
     },
     {
       table: "labor_records",
-      rows: bundle.labor.map((row) => ({ ...row, id: row.id, report_id: reportId }))
+      rows: bundle.labor.map((row) => rowForReport(row, reportId))
     },
     {
       table: "task_records",
-      rows: bundle.tasks.map((row) => ({ ...row, id: row.id, report_id: reportId }))
+      rows: bundle.tasks.map((row) => rowForReport(row, reportId))
     },
     {
       table: "handover_items",
-      rows: bundle.handovers.map((row) => ({ ...row, id: row.id, report_id: reportId }))
+      rows: bundle.handovers.map((row) => rowForReport(row, reportId))
     },
     {
       table: "signatures",
-      rows: bundle.signatures.map((row) => ({ ...row, id: row.id, report_id: reportId }))
+      rows: bundle.signatures.map((row) => rowForReport(row, reportId))
     }
   ];
 
