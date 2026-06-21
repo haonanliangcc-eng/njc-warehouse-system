@@ -33,6 +33,12 @@ type ReportSection =
   | "morning_returns"
   | "evening_logistics";
 
+type ChartPoint = {
+  label: string;
+  value: number;
+  secondary?: number;
+};
+
 function toNumber(value: string) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
@@ -882,9 +888,38 @@ function AnalyticsPanel({
   const processedQuantity = bundle.labor.reduce((sum, row) => sum + row.processed_quantity, 0);
   const productivity = metrics.laborCount > 0 ? Math.round(processedQuantity / metrics.laborCount) : 0;
   const suggestedLabor = productivity > 0 ? Math.ceil(metrics.totalShipments / productivity) : 0;
+  const carrierVolume: ChartPoint[] = bundle.shipments.map((row) => ({
+    label: row.carrier,
+    value: row.package_count,
+    secondary: row.pallet_count
+  }));
+  const carrierShare = carrierVolume.filter((row) => row.value > 0);
+  const logisticsShare: ChartPoint[] = [
+    { label: "拉回NJC", value: returnRows.length },
+    { label: "前置仓发货", value: dispatchRows.length },
+    { label: "揽收回仓", value: pickupRows.length },
+    { label: "异常事件", value: metrics.incidentCount }
+  ].filter((row) => row.value > 0);
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
+      <Panel title="仓库吞吐趋势">
+        <LineChart
+          data={carrierVolume}
+          title="各业务发货量与板数"
+          valueLabel="包裹数"
+          secondaryLabel="板数"
+        />
+      </Panel>
+
+      <Panel title="业务占比饼图">
+        <DonutChart
+          data={carrierShare}
+          emptyText="暂无发货量数据"
+          totalLabel="总发货量"
+        />
+      </Panel>
+
       <Panel title="业务分类分析">
         <Table headers={["业务", "发货量", "板数", "占比"]}>
           {bundle.shipments.map((row) => {
@@ -938,6 +973,14 @@ function AnalyticsPanel({
       </Panel>
 
       <Panel title="回仓与前置仓发货分析">
+        <div className="mb-5">
+          <DonutChart
+            data={logisticsShare}
+            emptyText="暂无回仓/发货记录"
+            totalLabel="记录数"
+            compact
+          />
+        </div>
         <div className="mb-4 grid gap-3 sm:grid-cols-2">
           <Metric label="回仓/发货记录" value={returnRows.length + pickupRows.length + dispatchRows.length} />
           <Metric label="已完成" value={completedLogisticsRows.length} />
@@ -966,6 +1009,147 @@ function SetupMissing() {
         <p className="mt-3 text-sm text-blue-700/70">请复制 .env.example 为 .env.local，并填写 NEXT_PUBLIC_SUPABASE_URL 和 NEXT_PUBLIC_SUPABASE_ANON_KEY。</p>
       </div>
     </main>
+  );
+}
+
+const chartColors = ["#2563eb", "#0f766e", "#f97316", "#7c3aed", "#dc2626", "#64748b"];
+
+function LineChart({
+  data,
+  title,
+  valueLabel,
+  secondaryLabel
+}: {
+  data: ChartPoint[];
+  title: string;
+  valueLabel: string;
+  secondaryLabel: string;
+}) {
+  const width = 640;
+  const height = 260;
+  const padding = { top: 24, right: 30, bottom: 48, left: 54 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const maxValue = Math.max(1, ...data.flatMap((point) => [point.value, point.secondary ?? 0]));
+  const step = data.length > 1 ? chartWidth / (data.length - 1) : chartWidth;
+  const pointFor = (point: ChartPoint, index: number, key: "value" | "secondary") => {
+    const raw = key === "value" ? point.value : point.secondary ?? 0;
+    const x = padding.left + (data.length > 1 ? index * step : chartWidth / 2);
+    const y = padding.top + chartHeight - (raw / maxValue) * chartHeight;
+    return { x, y };
+  };
+  const volumePath = data.map((point, index) => {
+    const { x, y } = pointFor(point, index, "value");
+    return `${index === 0 ? "M" : "L"} ${x} ${y}`;
+  }).join(" ");
+  const palletPath = data.map((point, index) => {
+    const { x, y } = pointFor(point, index, "secondary");
+    return `${index === 0 ? "M" : "L"} ${x} ${y}`;
+  }).join(" ");
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+        <p className="font-semibold text-blue-950">{title}</p>
+        <div className="flex gap-3 text-blue-700/80">
+          <span><span className="mr-1 inline-block h-2 w-5 rounded-full bg-brand" />{valueLabel}</span>
+          <span><span className="mr-1 inline-block h-2 w-5 rounded-full bg-accent" />{secondaryLabel}</span>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${width} ${height}`} className="min-h-[260px] w-full min-w-[560px]" role="img" aria-label={title}>
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const y = padding.top + chartHeight - ratio * chartHeight;
+            return (
+              <g key={ratio}>
+                <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="#dbeafe" strokeWidth="1" />
+                <text x={padding.left - 10} y={y + 4} textAnchor="end" className="fill-blue-700 text-[11px]">{Math.round(maxValue * ratio)}</text>
+              </g>
+            );
+          })}
+          <path d={volumePath} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={palletPath} fill="none" stroke="#f97316" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 5" />
+          {data.map((point, index) => {
+            const main = pointFor(point, index, "value");
+            const secondary = pointFor(point, index, "secondary");
+            return (
+              <g key={point.label}>
+                <circle cx={main.x} cy={main.y} r="4" fill="#2563eb" />
+                <circle cx={secondary.x} cy={secondary.y} r="4" fill="#f97316" />
+                <text x={main.x} y={height - 18} textAnchor="middle" className="fill-blue-950 text-[12px] font-semibold">{point.label}</text>
+                <text x={main.x} y={main.y - 10} textAnchor="middle" className="fill-blue-700 text-[11px]">{point.value}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function DonutChart({
+  data,
+  emptyText,
+  totalLabel,
+  compact = false
+}: {
+  data: ChartPoint[];
+  emptyText: string;
+  totalLabel: string;
+  compact?: boolean;
+}) {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  const radius = 72;
+  const circumference = 2 * Math.PI * radius;
+
+  if (total <= 0) {
+    return <div className="rounded-lg border border-dashed border-blue-200 bg-blue-50/50 p-6 text-center text-sm text-blue-700/70">{emptyText}</div>;
+  }
+
+  return (
+    <div className={`grid items-center gap-4 ${compact ? "sm:grid-cols-[180px_1fr]" : "sm:grid-cols-[220px_1fr]"}`}>
+      <div className="relative mx-auto">
+        <svg viewBox="0 0 200 200" className={compact ? "h-40 w-40" : "h-52 w-52"} role="img" aria-label={totalLabel}>
+          <circle cx="100" cy="100" r={radius} fill="none" stroke="#e0f2fe" strokeWidth="28" />
+          {data.map((item, index) => {
+            const dash = (item.value / total) * circumference;
+            const previousValue = data.slice(0, index).reduce((sum, row) => sum + row.value, 0);
+            const offset = 25 - (previousValue / total) * circumference;
+            return (
+              <circle
+                key={item.label}
+                cx="100"
+                cy="100"
+                r={radius}
+                fill="none"
+                stroke={chartColors[index % chartColors.length]}
+                strokeWidth="28"
+                strokeDasharray={`${dash} ${circumference - dash}`}
+                strokeDashoffset={offset}
+                strokeLinecap="round"
+                transform="rotate(-90 100 100)"
+              />
+            );
+          })}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-xs font-semibold text-blue-700/70">{totalLabel}</span>
+          <span className="text-3xl font-semibold text-blue-950">{total}</span>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {data.map((item, index) => {
+          const percent = Math.round((item.value / total) * 100);
+          return (
+            <div key={item.label} className="grid grid-cols-[auto_1fr_auto] items-center gap-2 text-sm">
+              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: chartColors[index % chartColors.length] }} />
+              <span className="font-medium text-blue-950">{item.label}</span>
+              <span className="text-blue-700/80">{item.value} · {percent}%</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
