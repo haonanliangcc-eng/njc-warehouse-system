@@ -57,7 +57,11 @@ export const taskTemplates = [
 ];
 
 export function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 export function createDefaultReportBundle(date = todayKey(), shift = "早班"): ReportBundle {
@@ -151,21 +155,49 @@ function mergeHandovers(defaultRows: HandoverItem[], rows: HandoverItem[]) {
   return [...merged, ...extraRows];
 }
 
+function normalizeDateTime(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 export function normalizeReportBundle(bundle: ReportBundle): ReportBundle {
   const defaults = createDefaultReportBundle(bundle.report.report_date, bundle.report.shift);
+  const shipments = mergeByCarrier(defaults.shipments, bundle.shipments ?? []).map((row) => ({
+    ...row,
+    pickup_time: normalizeDateTime(row.pickup_time)
+  }));
+  const customs = mergeByName<CustomsRecord>(
+    defaults.customs,
+    (bundle.customs ?? []).filter((row) => !deprecatedCustomsNames.has(row.broker_name)),
+    "broker_name"
+  ).map((row) => ({
+    ...row,
+    cleared_at: normalizeDateTime(row.cleared_at)
+  }));
+  const tasks = mergeByName<TaskRecord>(defaults.tasks, bundle.tasks ?? [], "task_name").map((row) => ({
+    ...row,
+    completed_at: normalizeDateTime(row.completed_at)
+  }));
+  const handovers = mergeHandovers(defaults.handovers, bundle.handovers ?? []).map((row) => ({
+    ...row,
+    due_at: normalizeDateTime(row.due_at),
+    completed_at: normalizeDateTime(row.completed_at)
+  }));
+  const signatures = (bundle.signatures?.length ? bundle.signatures : defaults.signatures).map((row) => ({
+    ...row,
+    signed_at: normalizeDateTime(row.signed_at)
+  }));
+
   return {
     ...defaults,
     ...bundle,
-    shipments: mergeByCarrier(defaults.shipments, bundle.shipments ?? []),
-    customs: mergeByName<CustomsRecord>(
-      defaults.customs,
-      (bundle.customs ?? []).filter((row) => !deprecatedCustomsNames.has(row.broker_name)),
-      "broker_name"
-    ),
+    shipments,
+    customs,
     labor: mergeByName<LaborRecord>(defaults.labor, bundle.labor ?? [], "labor_company"),
-    tasks: mergeByName<TaskRecord>(defaults.tasks, bundle.tasks ?? [], "task_name"),
+    tasks,
     incidents: bundle.incidents ?? [],
-    handovers: mergeHandovers(defaults.handovers, bundle.handovers ?? []),
-    signatures: bundle.signatures?.length ? bundle.signatures : defaults.signatures
+    handovers,
+    signatures
   };
 }

@@ -44,12 +44,37 @@ function toNumber(value: string) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
+function padTimePart(value: number) {
+  return String(value).padStart(2, "0");
+}
+
 function toLocalInput(value: string | null | undefined) {
-  return value ? value.slice(0, 16) : "";
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${padTimePart(date.getMonth() + 1)}-${padTimePart(date.getDate())}T${padTimePart(date.getHours())}:${padTimePart(date.getMinutes())}`;
 }
 
 function fromLocalInput(value: string) {
-  return value ? new Date(value).toISOString() : null;
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function formatDateTime(value: string | Date | null | undefined) {
+  if (!value) return "-";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).format(date);
 }
 
 export default function Home() {
@@ -469,7 +494,7 @@ export default function Home() {
           <div>
             <h1 className="text-2xl font-semibold text-blue-950">NJC仓运营数据中心</h1>
             <p className="mt-1 text-sm text-blue-700/80">
-              {user.full_name || user.email} · {user.role} · <span suppressHydrationWarning>{currentTime.toLocaleString()}</span> · {status}
+              {user.full_name || user.email} · {user.role} · <span suppressHydrationWarning>{formatDateTime(currentTime)}</span> · {status}
               {isDirty ? " · 有未保存修改" : lastSavedAt ? ` · 上次保存 ${lastSavedAt}` : ""}
             </p>
           </div>
@@ -559,7 +584,7 @@ export default function Home() {
                   <Cell>{report.shift}</Cell>
                   <Cell>{report.status}</Cell>
                   <Cell>{report.version}</Cell>
-                  <Cell>{report.updated_at ?? ""}</Cell>
+                  <Cell>{formatDateTime(report.updated_at)}</Cell>
                   <Cell>
                     <div className="flex flex-wrap gap-2">
                       <button onClick={() => report.id && loadReport(report.id)} className="rounded bg-ink px-3 py-1 text-white">{isAdmin ? "打开/编辑" : "打开"}</button>
@@ -692,7 +717,7 @@ function DailyEditor({
                 <Cell>{row.carrier}</Cell>
                 <Cell><NumberInput disabled={!canEdit} value={row.package_count} onChange={(value) => updateShipment(index, { package_count: value })} /></Cell>
                 <Cell><NumberInput disabled={!canEdit} value={row.pallet_count} onChange={(value) => updateShipment(index, { pallet_count: value })} /></Cell>
-                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.pickup_time)} onChange={(event) => updateShipment(index, { pickup_time: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} lang="en-GB" type="datetime-local" value={toLocalInput(row.pickup_time)} onChange={(event) => updateShipment(index, { pickup_time: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} value={row.notes} onChange={(event) => updateShipment(index, { notes: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
               </tr>
             ))}
@@ -712,7 +737,7 @@ function DailyEditor({
                 <Cell><input disabled={!canEdit || presetCustomsNames.has(row.broker_name)} value={row.broker_name} onChange={(event) => updateCustoms(index, { broker_name: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1 disabled:bg-blue-50" /></Cell>
                 <Cell><input disabled={!canEdit} value={row.status} onChange={(event) => updateCustoms(index, { status: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><NumberInput disabled={!canEdit} value={row.quantity} onChange={(value) => updateCustoms(index, { quantity: value })} /></Cell>
-                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.cleared_at)} onChange={(event) => updateCustoms(index, { cleared_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} lang="en-GB" type="datetime-local" value={toLocalInput(row.cleared_at)} onChange={(event) => updateCustoms(index, { cleared_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} value={row.notes} onChange={(event) => updateCustoms(index, { notes: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
               </tr>
             ))}
@@ -734,7 +759,7 @@ function DailyEditor({
               <tr key={row.id ?? index}>
                 <Cell><input disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="例如：托盘2板 / 包裹30件" className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
-                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} lang="en-GB" type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} type="checkbox" checked={row.completed} onChange={(event) => updateHandover(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="h-4 w-4" /></Cell>
               </tr>
             ))}
@@ -768,7 +793,7 @@ function DailyEditor({
                   </select>
                 </Cell>
                 <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="发货数量" className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
-                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} lang="en-GB" type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} type="checkbox" checked={row.completed} onChange={(event) => updateHandover(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="h-4 w-4" /></Cell>
               </tr>
             ))}
@@ -776,7 +801,7 @@ function DailyEditor({
               <tr key={row.id ?? index}>
                 <Cell><input disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="揽收数量" className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
-                <Cell><input disabled={!canEdit} type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} lang="en-GB" type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} type="checkbox" checked={row.completed} onChange={(event) => updateHandover(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="h-4 w-4" /></Cell>
               </tr>
             ))}
@@ -949,7 +974,7 @@ function AnalyticsPanel({
               <Cell>{row.broker_name || "-"}</Cell>
               <Cell>{row.status || "-"}</Cell>
               <Cell>{row.quantity}</Cell>
-              <Cell>{row.cleared_at?.slice(0, 16).replace("T", " ") ?? "-"}</Cell>
+              <Cell>{formatDateTime(row.cleared_at)}</Cell>
             </tr>
           ))}
         </Table>
@@ -991,7 +1016,7 @@ function AnalyticsPanel({
               <Cell>{row.priority === "morning_return" ? "拉回NJC" : row.priority === "evening_pickup" ? "晚间揽收回仓" : "晚间发往前置仓"}</Cell>
               <Cell>{row.description}</Cell>
               <Cell>{row.assigned_to || "-"}</Cell>
-              <Cell>{row.due_at?.slice(0, 16).replace("T", " ") ?? "-"}</Cell>
+              <Cell>{formatDateTime(row.due_at)}</Cell>
               <Cell>{row.completed ? "完成" : "未完成"}</Cell>
             </tr>
           ))}
