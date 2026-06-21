@@ -39,6 +39,19 @@ type ChartPoint = {
   secondary?: number;
 };
 
+type DailySection = "base" | "shipments" | "customs" | "returns" | "evening" | "tasks" | "labor" | "incidents";
+
+const dailySections: { key: DailySection; label: string }[] = [
+  { key: "base", label: "基础信息" },
+  { key: "shipments", label: "发货记录" },
+  { key: "customs", label: "清关行" },
+  { key: "returns", label: "拉回NJC物资" },
+  { key: "evening", label: "晚间发货与揽收" },
+  { key: "tasks", label: "员工职责" },
+  { key: "labor", label: "劳务记录" },
+  { key: "incidents", label: "异常事件" }
+];
+
 function toNumber(value: string) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
@@ -646,6 +659,8 @@ function DailyEditor({
   uploadIncidentPhoto: (incident: Incident, file: File) => Promise<void>;
   uploading: string | null;
 }) {
+  const [activeDailySection, setActiveDailySection] = useState<DailySection>("base");
+
   function updateShipment(index: number, next: Partial<ShipmentRecord>) {
     updateBundle({ shipments: bundle.shipments.map((row, i) => i === index ? { ...row, ...next } : row) });
   }
@@ -660,6 +675,44 @@ function DailyEditor({
 
   function updateHandover(index: number, next: Partial<HandoverItem>) {
     updateBundle({ handovers: (bundle.handovers ?? []).map((row, i) => i === index ? { ...row, ...next } : row) });
+  }
+
+  function handoverCompletionValue(row: HandoverItem) {
+    if (row.assigned_to === "无发货需求") return "no_demand";
+    return row.completed ? "completed" : "pending";
+  }
+
+  function updateHandoverCompletion(index: number, value: string) {
+    if (value === "no_demand") {
+      updateHandover(index, { assigned_to: "无发货需求", completed: true, completed_at: new Date().toISOString() });
+      return;
+    }
+    if (value === "completed") {
+      const row = bundle.handovers[index];
+      updateHandover(index, { assigned_to: row.assigned_to === "无发货需求" ? "" : row.assigned_to, completed: true, completed_at: new Date().toISOString() });
+      return;
+    }
+    const row = bundle.handovers[index];
+    updateHandover(index, { assigned_to: row.assigned_to === "无发货需求" ? "" : row.assigned_to, completed: false, completed_at: null });
+  }
+
+  function taskStatusValue(task: TaskRecord) {
+    if (task.notes === "无需求") return "no_demand";
+    return task.completed ? "completed" : "pending";
+  }
+
+  function updateTaskStatus(index: number, value: string) {
+    if (value === "no_demand") {
+      updateTask(index, { completed: true, completed_at: new Date().toISOString(), notes: "无需求", assigned_to: "" });
+      return;
+    }
+    if (value === "completed") {
+      const task = bundle.tasks[index];
+      updateTask(index, { completed: true, completed_at: new Date().toISOString(), notes: task.notes === "无需求" ? "" : task.notes });
+      return;
+    }
+    const task = bundle.tasks[index];
+    updateTask(index, { completed: false, completed_at: null, notes: task.notes === "无需求" ? "" : task.notes });
   }
 
   const morningReturns = (bundle.handovers ?? [])
@@ -686,9 +739,20 @@ function DailyEditor({
           </div>
         </div>
       )}
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
+      <div className="mb-5 flex gap-2 overflow-x-auto rounded-lg border border-blue-100 bg-white/90 p-2 shadow-panel">
+        {dailySections.map((section) => (
+          <button
+            key={section.key}
+            onClick={() => setActiveDailySection(section.key)}
+            className={`whitespace-nowrap rounded px-3 py-2 text-sm font-semibold ${activeDailySection === section.key ? "bg-brand text-white shadow-sm" : "bg-white text-blue-900"}`}
+          >
+            {section.label}
+          </button>
+        ))}
+      </div>
+      <div className={`grid gap-5 ${activeDailySection === "labor" || activeDailySection === "incidents" ? "" : "xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]"}`}>
       <div className="space-y-5">
-        <Panel title="日报基础信息">
+        {activeDailySection === "base" && <Panel title="日报基础信息">
           {canEdit && <SectionSaveButton onClick={() => void onSaveSection("report", "基础信息")} />}
           <div className="grid gap-3 sm:grid-cols-3">
             <Label label="日期"><input disabled={!canEdit} type="date" value={bundle.report.report_date} onChange={(event) => updateBundle({ report: { ...bundle.report, report_date: event.target.value } })} className="w-full rounded border border-blue-100 px-3 py-2" /></Label>
@@ -707,9 +771,9 @@ function DailyEditor({
           </div>
           <textarea disabled={!canEdit} placeholder="备注" value={bundle.report.general_notes} onChange={(event) => updateBundle({ report: { ...bundle.report, general_notes: event.target.value } })} className="mt-3 min-h-24 w-full rounded border border-blue-100 px-3 py-2" />
           <p className="mt-2 text-sm text-blue-700/70">当前版本：{bundle.report.version}</p>
-        </Panel>
+        </Panel>}
 
-        <Panel title="发货记录">
+        {activeDailySection === "shipments" && <Panel title="发货记录">
           {canEdit && <SectionSaveButton onClick={() => void onSaveSection("shipments", "发货记录")} />}
           <Table headers={["承运商", "包裹数", "板数", "提货时间", "备注"]}>
             {bundle.shipments.map((row, index) => (
@@ -722,9 +786,9 @@ function DailyEditor({
               </tr>
             ))}
           </Table>
-        </Panel>
+        </Panel>}
 
-        <Panel title="清关行">
+        {activeDailySection === "customs" && <Panel title="清关行">
           {canEdit && <SectionSaveButton onClick={() => void onSaveSection("customs", "清关行")} />}
           {canEdit && (
             <button onClick={() => updateBundle({ customs: [...(bundle.customs ?? []), { broker_name: "", status: "", quantity: 0, cleared_at: null, notes: "" }] })} className="mb-3 rounded bg-ink px-3 py-2 text-sm font-semibold text-white">
@@ -735,16 +799,23 @@ function DailyEditor({
             {(bundle.customs ?? []).map((row, index) => (
               <tr key={row.id ?? index}>
                 <Cell><input disabled={!canEdit || presetCustomsNames.has(row.broker_name)} value={row.broker_name} onChange={(event) => updateCustoms(index, { broker_name: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1 disabled:bg-blue-50" /></Cell>
-                <Cell><input disabled={!canEdit} value={row.status} onChange={(event) => updateCustoms(index, { status: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell>
+                  <select disabled={!canEdit} value={row.status} onChange={(event) => updateCustoms(index, { status: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1">
+                    <option value="">请选择</option>
+                    <option value="无需提货">无需提货</option>
+                    <option value="提货中">提货中</option>
+                    <option value="已完成">已完成</option>
+                  </select>
+                </Cell>
                 <Cell><NumberInput disabled={!canEdit} value={row.quantity} onChange={(value) => updateCustoms(index, { quantity: value })} /></Cell>
                 <Cell><input disabled={!canEdit} lang="en-GB" type="datetime-local" value={toLocalInput(row.cleared_at)} onChange={(event) => updateCustoms(index, { cleared_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} value={row.notes} onChange={(event) => updateCustoms(index, { notes: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
               </tr>
             ))}
           </Table>
-        </Panel>
+        </Panel>}
 
-        <Panel title="拉回NJC物资">
+        {activeDailySection === "returns" && <Panel title="拉回NJC物资">
           {canEdit && <SectionSaveButton onClick={() => void onSaveSection("morning_returns", "拉回NJC物资")} />}
           {canEdit && (
             <button
@@ -764,9 +835,9 @@ function DailyEditor({
               </tr>
             ))}
           </Table>
-        </Panel>
+        </Panel>}
 
-        <Panel title="晚间发货与揽收回仓">
+        {activeDailySection === "evening" && <Panel title="晚间发货与揽收回仓">
           {canEdit && <SectionSaveButton onClick={() => void onSaveSection("evening_logistics", "晚间发货与揽收回仓")} />}
           {canEdit && (
             <div className="mb-3 flex flex-wrap gap-2">
@@ -794,7 +865,13 @@ function DailyEditor({
                 </Cell>
                 <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="发货数量" className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} lang="en-GB" type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
-                <Cell><input disabled={!canEdit} type="checkbox" checked={row.completed} onChange={(event) => updateHandover(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="h-4 w-4" /></Cell>
+                <Cell>
+                  <select disabled={!canEdit} value={handoverCompletionValue(row)} onChange={(event) => updateHandoverCompletion(index, event.target.value)} className="w-full rounded border border-blue-100 px-2 py-1">
+                    <option value="pending">未完成</option>
+                    <option value="completed">已完成</option>
+                    <option value="no_demand">无发货需求</option>
+                  </select>
+                </Cell>
               </tr>
             ))}
             {eveningPickups.map(({ row, index }) => (
@@ -802,30 +879,40 @@ function DailyEditor({
                 <Cell><input disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="揽收数量" className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
                 <Cell><input disabled={!canEdit} lang="en-GB" type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
-                <Cell><input disabled={!canEdit} type="checkbox" checked={row.completed} onChange={(event) => updateHandover(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="h-4 w-4" /></Cell>
+                <Cell>
+                  <select disabled={!canEdit} value={handoverCompletionValue(row)} onChange={(event) => updateHandoverCompletion(index, event.target.value)} className="w-full rounded border border-blue-100 px-2 py-1">
+                    <option value="pending">未完成</option>
+                    <option value="completed">已完成</option>
+                    <option value="no_demand">无发货需求</option>
+                  </select>
+                </Cell>
               </tr>
             ))}
           </Table>
-        </Panel>
+        </Panel>}
 
-        <Panel title="员工职责清单">
+        {activeDailySection === "tasks" && <Panel title="员工职责清单">
           {canEdit && <SectionSaveButton onClick={() => void onSaveSection("tasks", "员工职责清单")} />}
           <div className="space-y-2">
             {bundle.tasks.map((task, index) => (
-              <label key={`${task.task_name}-${index}`} className="grid grid-cols-[auto_1fr] gap-3 rounded border border-blue-100 p-3 text-sm">
-                <input disabled={!canEdit} type="checkbox" checked={task.completed} onChange={(event) => updateTask(index, { completed: event.target.checked, completed_at: event.target.checked ? new Date().toISOString() : null })} className="mt-1 h-4 w-4" />
+              <label key={`${task.task_name}-${index}`} className="grid gap-3 rounded border border-blue-100 p-3 text-sm sm:grid-cols-[1fr_180px]">
                 <span>
                   <span className="block font-semibold">{task.task_name}</span>
                   <input disabled={!canEdit} placeholder="责任人" value={task.assigned_to} onChange={(event) => updateTask(index, { assigned_to: event.target.value })} className="mt-2 w-full rounded border border-blue-100 px-2 py-1" />
                 </span>
+                <select disabled={!canEdit} value={taskStatusValue(task)} onChange={(event) => updateTaskStatus(index, event.target.value)} className="h-10 rounded border border-blue-100 px-2 py-1">
+                  <option value="pending">未完成</option>
+                  <option value="completed">已完成</option>
+                  <option value="no_demand">无需求</option>
+                </select>
               </label>
             ))}
           </div>
-        </Panel>
+        </Panel>}
       </div>
 
       <div className="space-y-5">
-        <Panel title="劳务记录">
+        {activeDailySection === "labor" && <Panel title="劳务记录">
           {canEdit && <SectionSaveButton onClick={() => void onSaveSection("labor", "劳务记录")} />}
           {canEdit && (
             <button
@@ -843,9 +930,9 @@ function DailyEditor({
               <NumberInput disabled={!canEdit} value={row.processed_quantity} onChange={(value) => updateBundle({ labor: bundle.labor.map((item, i) => i === index ? { ...item, processed_quantity: value } : item) })} />
             </div>
           ))}
-        </Panel>
+        </Panel>}
 
-        <Panel title="异常事件">
+        {activeDailySection === "incidents" && <Panel title="异常事件">
           {canEdit && <SectionSaveButton onClick={() => void onSaveSection("incidents", "异常事件")} />}
           {canEdit && <button onClick={() => { setBundle((current) => ({ ...current, incidents: [...current.incidents, { id: crypto.randomUUID(), category: "general", description: "", severity: "medium", action_taken: "", owner_id: null, status: "open", photos: [] }] })); markDirty(); }} className="mb-3 rounded bg-ink px-3 py-2 text-sm font-semibold text-white">新增异常</button>}
           <div className="space-y-3">
@@ -872,7 +959,7 @@ function DailyEditor({
               </div>
             ))}
           </div>
-        </Panel>
+        </Panel>}
       </div>
       </div>
     </>
