@@ -1,4 +1,12 @@
-import type { Carrier, ReportBundle } from "./types";
+import type {
+  Carrier,
+  CustomsRecord,
+  HandoverItem,
+  LaborRecord,
+  ReportBundle,
+  ShipmentRecord,
+  TaskRecord
+} from "./types";
 
 export const carriers: Carrier[] = ["GOFO", "SPX", "DD301", "UNI", "TEMU", "OTHER"];
 
@@ -121,5 +129,37 @@ export function createDefaultReportBundle(date = todayKey(), shift = "早班"): 
       { signature_type: "supervisor", signer_id: null, signer_name: "", signed_at: null, storage_path: null },
       { signature_type: "manager", signer_id: null, signer_name: "", signed_at: null, storage_path: null }
     ]
+  };
+}
+
+function mergeByCarrier(defaultRows: ShipmentRecord[], rows: ShipmentRecord[]) {
+  return defaultRows.map((defaultRow) => rows.find((row) => row.carrier === defaultRow.carrier) ?? defaultRow);
+}
+
+function mergeByName<T extends { [key: string]: unknown }>(defaultRows: T[], rows: T[], field: keyof T) {
+  const merged = defaultRows.map((defaultRow) => rows.find((row) => row[field] === defaultRow[field]) ?? defaultRow);
+  const extraRows = rows.filter((row) => !defaultRows.some((defaultRow) => defaultRow[field] === row[field]));
+  return [...merged, ...extraRows];
+}
+
+function mergeHandovers(defaultRows: HandoverItem[], rows: HandoverItem[]) {
+  const key = (row: HandoverItem) => `${row.priority}:${row.description}`;
+  const merged = defaultRows.map((defaultRow) => rows.find((row) => key(row) === key(defaultRow)) ?? defaultRow);
+  const extraRows = rows.filter((row) => !defaultRows.some((defaultRow) => key(defaultRow) === key(row)));
+  return [...merged, ...extraRows];
+}
+
+export function normalizeReportBundle(bundle: ReportBundle): ReportBundle {
+  const defaults = createDefaultReportBundle(bundle.report.report_date, bundle.report.shift);
+  return {
+    ...defaults,
+    ...bundle,
+    shipments: mergeByCarrier(defaults.shipments, bundle.shipments ?? []),
+    customs: mergeByName<CustomsRecord>(defaults.customs, bundle.customs ?? [], "broker_name"),
+    labor: mergeByName<LaborRecord>(defaults.labor, bundle.labor ?? [], "labor_company"),
+    tasks: mergeByName<TaskRecord>(defaults.tasks, bundle.tasks ?? [], "task_name"),
+    incidents: bundle.incidents ?? [],
+    handovers: mergeHandovers(defaults.handovers, bundle.handovers ?? []),
+    signatures: bundle.signatures?.length ? bundle.signatures : defaults.signatures
   };
 }

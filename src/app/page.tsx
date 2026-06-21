@@ -6,6 +6,7 @@ import { createBrowserSupabase } from "@/lib/supabase";
 import {
   createDefaultReportBundle,
   forwardWarehouses,
+  normalizeReportBundle,
   presetCustomsNames,
   shifts,
   todayKey
@@ -99,7 +100,7 @@ export default function Home() {
       }
       const draft = window.localStorage.getItem(`warehouse-draft-${data.user.id}`);
       if (draft) {
-        setBundle(JSON.parse(draft));
+        setBundle(normalizeReportBundle(JSON.parse(draft)));
         setIsDirty(true);
         setStatus("已恢复本机草稿，请确认后保存。");
       }
@@ -161,12 +162,14 @@ export default function Home() {
     if (!canEdit) return;
     try {
       setStatus("保存中...");
-      const isExisting = Boolean(bundle.report.id);
-      const data = await apiFetch(isExisting ? `/api/daily-reports/${bundle.report.id}` : "/api/daily-reports", {
+      const normalized = normalizeReportBundle(bundle);
+      setBundle(normalized);
+      const isExisting = Boolean(normalized.report.id);
+      const data = await apiFetch(isExisting ? `/api/daily-reports/${normalized.report.id}` : "/api/daily-reports", {
         method: isExisting ? "PUT" : "POST",
-        body: JSON.stringify(bundle)
+        body: JSON.stringify(normalized)
       });
-      setBundle(data.bundle);
+      setBundle(normalizeReportBundle(data.bundle));
       setIsDirty(false);
       setLastSavedAt(new Date().toLocaleTimeString());
       if (user) window.localStorage.removeItem(`warehouse-draft-${user.id}`);
@@ -191,7 +194,7 @@ export default function Home() {
             if (!response.ok) throw new Error(payload.error || "读取失败");
             return payload;
           });
-      setBundle(data.bundle);
+      setBundle(normalizeReportBundle(data.bundle));
       setIsDirty(false);
       setActiveView("daily");
       setStatus("已读取");
@@ -428,6 +431,24 @@ export default function Home() {
             setBundle={setBundle}
             updateBundle={updateBundle}
             markDirty={() => setIsDirty(true)}
+            onSave={saveReport}
+            onClear={() => {
+              const cleared = createDefaultReportBundle(bundle.report.report_date, bundle.report.shift);
+              setBundle({
+                ...cleared,
+                report: {
+                  ...cleared.report,
+                  id: bundle.report.id,
+                  created_by: bundle.report.created_by,
+                  created_at: bundle.report.created_at,
+                  report_date: bundle.report.report_date,
+                  shift: bundle.report.shift,
+                  version: bundle.report.version
+                }
+              });
+              setIsDirty(true);
+              setStatus("已清除本页内容，保存后才会写入云端。");
+            }}
             uploadIncidentPhoto={uploadIncidentPhoto}
             uploading={uploading}
           />
@@ -486,6 +507,8 @@ function DailyEditor({
   setBundle,
   updateBundle,
   markDirty,
+  onSave,
+  onClear,
   uploadIncidentPhoto,
   uploading
 }: {
@@ -494,6 +517,8 @@ function DailyEditor({
   setBundle: React.Dispatch<React.SetStateAction<ReportBundle>>;
   updateBundle: (next: Partial<ReportBundle>) => void;
   markDirty: () => void;
+  onSave: () => Promise<void>;
+  onClear: () => void;
   uploadIncidentPhoto: (incident: Incident, file: File) => Promise<void>;
   uploading: string | null;
 }) {
@@ -524,7 +549,20 @@ function DailyEditor({
     .filter(({ row }) => row.priority === "evening_dispatch" || row.priority === "morning_material");
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
+    <>
+      {canEdit && (
+        <div className="sticky top-0 z-10 mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-100 bg-white/95 p-3 shadow-panel backdrop-blur">
+          <div>
+            <div className="font-semibold text-blue-950">日报操作</div>
+            <div className="text-sm text-blue-700/70">修改后请保存；清除只会清空当前页面内容。</div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => void onSave()} className="rounded bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm">保存日报</button>
+            <button onClick={onClear} className="rounded border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-900 shadow-sm">清除本页内容</button>
+          </div>
+        </div>
+      )}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
       <div className="space-y-5">
         <Panel title="日报基础信息">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -704,7 +742,8 @@ function DailyEditor({
           </div>
         </Panel>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
