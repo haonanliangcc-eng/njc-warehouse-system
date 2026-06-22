@@ -385,6 +385,7 @@ export default function Home() {
       ["总发货量", metrics.totalShipments],
       ["总板数", metrics.totalPallets],
       ["劳务人数", metrics.laborCount],
+      ["意见/修改建议", bundle.report.general_notes],
       [],
       ["承运商", "包裹数", "板数", "提货时间", "备注"],
       ...bundle.shipments.map((row) => [row.carrier, row.package_count, row.pallet_count, row.pickup_time ?? "", row.notes]),
@@ -768,7 +769,18 @@ function DailyEditor({
               </select>
             </Label>
           </div>
-          <textarea disabled={!canEdit} placeholder="备注" value={bundle.report.general_notes} onChange={(event) => updateBundle({ report: { ...bundle.report, general_notes: event.target.value } })} className="mt-3 min-h-24 w-full rounded border border-blue-100 px-3 py-2" />
+          <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50/40 p-3">
+            <label className="text-sm font-semibold text-blue-950" htmlFor="report-feedback">意见 / 修改建议</label>
+            <p className="mt-1 text-xs text-blue-700/70">记录同事使用反馈、流程优化建议、需要后续调整的功能点。</p>
+            <textarea
+              id="report-feedback"
+              disabled={!canEdit}
+              placeholder="例如：Temu 需要加入发货统计；保存后历史日报要能看到完整数据；员工职责需要新增某项..."
+              value={bundle.report.general_notes}
+              onChange={(event) => updateBundle({ report: { ...bundle.report, general_notes: event.target.value } })}
+              className="mt-3 min-h-28 w-full rounded border border-blue-100 bg-white px-3 py-2 disabled:bg-blue-50"
+            />
+          </div>
           <p className="mt-2 text-sm text-blue-700/70">当前版本：{bundle.report.version}</p>
         </Panel>}
 
