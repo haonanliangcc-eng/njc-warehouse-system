@@ -31,6 +31,7 @@ type ReportSection =
   | "tasks"
   | "incidents"
   | "morning_returns"
+  | "task_handover"
   | "evening_logistics";
 
 type ChartPoint = {
@@ -247,6 +248,12 @@ export default function Home() {
         ...saved.handovers.filter((item) => item.priority === "morning_return")
       ];
     }
+    if (section === "task_handover") {
+      next.handovers = [
+        ...current.handovers.filter((item) => item.priority !== "task_handover"),
+        ...saved.handovers.filter((item) => item.priority === "task_handover")
+      ];
+    }
     if (section === "evening_logistics") {
       const eveningPriorities = new Set(["evening_dispatch", "morning_material", "evening_pickup"]);
       next.handovers = [
@@ -395,7 +402,7 @@ export default function Home() {
       [],
       ["类型", "说明/目的地", "数量", "时间", "完成"],
       ...(bundle.handovers ?? []).map((row) => [
-        row.priority === "morning_return" ? "拉回NJC" : row.priority === "evening_pickup" ? "晚间揽收回仓" : "晚间发往前置仓",
+        row.priority === "morning_return" ? "拉回NJC" : row.priority === "evening_pickup" ? "晚间揽收回仓" : row.priority === "task_handover" ? "任务交接" : "晚间发往前置仓",
         row.description,
         row.assigned_to,
         row.due_at ?? "",
@@ -587,13 +594,13 @@ export default function Home() {
               <button onClick={() => void loadReports()} className="rounded border border-blue-100 bg-white px-3 py-2 text-sm font-semibold">刷新</button>
               {canEdit && <button onClick={() => { setBundle(createDefaultReportBundle()); setIsDirty(false); }} className="rounded bg-brand px-3 py-2 text-sm font-semibold text-white">新建日报</button>}
             </div>
-            <Table headers={["日期", "班次", "状态", "版本", "更新时间", "操作"]}>
+            <Table headers={["日期", "班次", "状态", "最后保存人", "更新时间", "操作"]}>
               {reports.map((report) => (
                 <tr key={report.id}>
                   <Cell>{report.report_date}</Cell>
                   <Cell>{report.shift}</Cell>
                   <Cell>{report.status}</Cell>
-                  <Cell>{report.version}</Cell>
+                  <Cell>{report.last_saved_by || "-"}</Cell>
                   <Cell>{formatDateTime(report.updated_at)}</Cell>
                   <Cell>
                     <div className="flex flex-wrap gap-2">
@@ -712,9 +719,16 @@ function DailyEditor({
     updateTask(index, { completed: false, completed_at: null, notes: task.notes === "无需求" ? "" : task.notes });
   }
 
+  function updateTaskHandoverCompletion(index: number, completed: boolean) {
+    updateHandover(index, { completed, completed_at: completed ? new Date().toISOString() : null });
+  }
+
   const morningReturns = (bundle.handovers ?? [])
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => row.priority === "morning_return");
+  const taskHandovers = (bundle.handovers ?? [])
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => row.priority === "task_handover");
   const eveningPickups = (bundle.handovers ?? [])
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => row.priority === "evening_pickup");
@@ -782,6 +796,34 @@ function DailyEditor({
             />
           </div>
           <p className="mt-2 text-sm text-blue-700/70">当前版本：{bundle.report.version}</p>
+        </Panel>}
+
+        {activeDailySection === "overview" && <Panel title="任务交接">
+          {canEdit && <SectionSaveButton onClick={() => void onSaveSection("task_handover", "任务交接")} />}
+          {canEdit && (
+            <button
+              onClick={() => updateBundle({ handovers: [...(bundle.handovers ?? []), { description: "", priority: "task_handover", assigned_to: "", due_at: null, completed: false, completed_at: null }] })}
+              className="mb-3 rounded bg-ink px-3 py-2 text-sm font-semibold text-white"
+            >
+              新增交接事项
+            </button>
+          )}
+          <Table headers={["交接事项", "负责人", "截止时间", "状态"]}>
+            {taskHandovers.map(({ row, index }) => (
+              <tr key={row.id ?? index}>
+                <Cell><input disabled={!canEdit} value={row.description} onChange={(event) => updateHandover(index, { description: event.target.value })} placeholder="例如：未完成事项、下一班需要跟进的问题" className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} value={row.assigned_to} onChange={(event) => updateHandover(index, { assigned_to: event.target.value })} placeholder="负责人" className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell><input disabled={!canEdit} lang="en-GB" type="datetime-local" value={toLocalInput(row.due_at)} onChange={(event) => updateHandover(index, { due_at: fromLocalInput(event.target.value) })} className="w-full rounded border border-blue-100 px-2 py-1" /></Cell>
+                <Cell>
+                  <select disabled={!canEdit} value={row.completed ? "completed" : "pending"} onChange={(event) => updateTaskHandoverCompletion(index, event.target.value === "completed")} className="w-full rounded border border-blue-100 px-2 py-1">
+                    <option value="pending">未完成</option>
+                    <option value="completed">已完成</option>
+                  </select>
+                </Cell>
+              </tr>
+            ))}
+          </Table>
+          {taskHandovers.length === 0 && <p className="mt-3 rounded border border-dashed border-blue-100 bg-blue-50/50 p-3 text-sm text-blue-700/70">暂无任务交接事项。</p>}
         </Panel>}
 
         {activeDailySection === "shipments" && <Panel title="发货记录">

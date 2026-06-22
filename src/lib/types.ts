@@ -24,6 +24,7 @@ export type DailyReport = {
   version: number;
   created_by?: string;
   updated_by?: string | null;
+  last_saved_by?: string | null;
   created_at?: string;
   updated_at?: string;
 };

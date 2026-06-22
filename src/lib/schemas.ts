@@ -98,6 +98,7 @@ export const reportSectionSchema = z.enum([
   "incidents",
   "morning_returns",
   "evening_logistics",
+  "task_handover",
   "handovers",
   "signatures"
 ]);

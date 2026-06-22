@@ -80,6 +80,12 @@ export async function PATCH(
         ...incoming.handovers.filter((item) => item.priority === "morning_return")
       ];
     }
+    if (section === "task_handover") {
+      merged.handovers = [
+        ...latest.handovers.filter((item) => item.priority !== "task_handover"),
+        ...incoming.handovers.filter((item) => item.priority === "task_handover")
+      ];
+    }
     if (section === "evening_logistics") {
       const eveningPriorities = new Set(["evening_dispatch", "morning_material", "evening_pickup"]);
       merged.handovers = [

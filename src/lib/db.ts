@@ -105,7 +105,25 @@ export async function listReportSummaries() {
     .order("report_date", { ascending: false })
     .limit(60);
   if (error) throw new ApiError(500, error.message);
-  return data ?? [];
+  const reports = data ?? [];
+  const userIds = Array.from(new Set(reports.map((report) => report.updated_by ?? report.created_by).filter(Boolean)));
+  if (userIds.length === 0) return reports;
+
+  const { data: profiles, error: profileError } = await service()
+    .from("profiles")
+    .select("id, full_name, email")
+    .in("id", userIds);
+  if (profileError) throw new ApiError(500, profileError.message);
+
+  const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
+  return reports.map((report) => {
+    const savedById = report.updated_by ?? report.created_by;
+    const savedBy = savedById ? profileMap.get(savedById) : null;
+    return {
+      ...report,
+      last_saved_by: savedBy ? savedBy.full_name || savedBy.email : savedById ?? null
+    };
+  });
 }
 
 export async function loadReportBundle(reportId: string): Promise<ReportBundle> {
